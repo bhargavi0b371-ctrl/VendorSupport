@@ -35,15 +35,42 @@ def get_items(db: Session, active_only: bool = True, category: Optional[str] = N
         q = q.filter(Item.is_active == True)
     if category:
         q = q.filter(Item.category == category)
-    return q.all()
+    items = q.order_by(Item.id).all()
+    unique_items = []
+    seen_names = set()
+    for item in items:
+        normalized_name = item.name_en.strip().casefold()
+        if normalized_name not in seen_names:
+            seen_names.add(normalized_name)
+            unique_items.append(item)
+    return unique_items
 
 def get_item_by_id(db: Session, item_id: int) -> Optional[Item]:
     return db.query(Item).filter(Item.id == item_id).first()
 
 def create_custom_item(db: Session, item_in: ItemCreate, user_id: int = 1) -> Item:
-    name_ta = item_in.name_ta if item_in.name_ta else item_in.name_en
+    name_en = item_in.name_en.strip()
+    existing_item = db.query(Item).filter(
+        Item.is_custom == True,
+        Item.vendor_id == user_id,
+        func.lower(func.trim(Item.name_en)) == name_en.casefold()
+    ).order_by(Item.id).first()
+
+    if existing_item:
+        link = db.query(VendorProduct).filter(
+            VendorProduct.user_id == user_id,
+            VendorProduct.item_id == existing_item.id
+        ).first()
+        if link:
+            link.is_active = True
+        else:
+            db.add(VendorProduct(user_id=user_id, item_id=existing_item.id, is_active=True))
+        db.commit()
+        return existing_item
+
+    name_ta = item_in.name_ta if item_in.name_ta else name_en
     new_item = Item(
-        name_en=item_in.name_en,
+        name_en=name_en,
         name_ta=name_ta,
         category=item_in.category,
         default_unit=item_in.default_unit,
