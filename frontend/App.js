@@ -17,6 +17,7 @@ import { SettingsScreen } from './src/screens/SettingsScreen';
 import { OnboardingScreen } from './src/screens/OnboardingScreen';
 import { DailySalesEntryScreen } from './src/screens/DailySalesEntryScreen';
 import { DailyReportModal } from './src/screens/DailyReportModal';
+import { MarketIntelligenceScreen } from './src/screens/MarketIntelligenceScreen';
 
 const MainNavigator = () => {
   const [currentScreen, setCurrentScreen] = useState('home');
@@ -96,6 +97,8 @@ const MainNavigator = () => {
         return <WhereToBuyScreen onNavigate={setCurrentScreen} />;
       case 'settings':
         return <SettingsScreen onNavigate={setCurrentScreen} />;
+      case 'marketIntelligence':
+        return <MarketIntelligenceScreen onNavigate={setCurrentScreen} />;
       default:
         return <HomeScreen onNavigate={setCurrentScreen} />;
     }
