@@ -5,7 +5,7 @@ from .database import engine, Base, SessionLocal
 from .seed_data import seed_database
 from .routers import (
     sales, purchases, reports, pricing, markets, voice, sync, items,
-    onboarding, daily_sales
+    onboarding, daily_sales, market_intelligence, price_prediction
 )
 
 @asynccontextmanager
@@ -45,6 +45,8 @@ app.include_router(markets.router)
 app.include_router(voice.router)
 app.include_router(sync.router)
 app.include_router(items.router)
+app.include_router(market_intelligence.router)
+app.include_router(price_prediction.router)
 
 @app.get("/")
 def root():
