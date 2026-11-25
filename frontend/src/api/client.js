@@ -405,87 +405,84 @@ class ApiClient {
 
   async submitOnboarding(data) {
     const u = await LocalDB.getAuthUser();
+    const uid = data.user_id || u?.id || 1;
+    const numericItemIds = (data.selected_item_ids || data.product_ids || []).filter(id => typeof id === 'number');
+    const customItems = (data.custom_items || data.custom_products || []).map(cp => ({
+      name_en: cp.name_en,
+      name_ta: cp.name_ta || cp.name_en,
+      category: cp.category,
+      default_unit: cp.default_unit || 'kg',
+      icon: cp.icon || 'tag-outline',
+      color: cp.color || '#4CAF50'
+    }));
+
     const payload = {
-      user_id: data.user_id || u?.id || 1,
-      ...data
+      user_id: uid,
+      selected_categories: data.selected_categories || [],
+      selected_item_ids: numericItemIds,
+      product_ids: numericItemIds,
+      custom_items: customItems,
+      custom_products: customItems
     };
 
-    // 1. Save locally first
-    await LocalDB.setOnboardingCompleted(true);
-    await LocalDB.setSelectedCategories(data.selected_categories || []);
+    // Send to backend - MUST SUCCEED to mark onboarding completed!
+    const res = await this._request('/api/onboarding', {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    });
 
-    try {
-      const res = await this._request('/api/onboarding', {
-        method: 'POST',
-        body: JSON.stringify(payload)
-      });
-      // Refresh vendor products from backend
-      const vProducts = await this.getVendorProducts(payload.user_id);
-      await LocalDB.saveVendorProducts(vProducts);
-      return res;
-    } catch (e) {
-      const allItems = await LocalDB.getItems();
-      const selected = allItems.filter(it => (data.product_ids || []).includes(it.id));
-      if (data.custom_products && data.custom_products.length > 0) {
-        data.custom_products.forEach(cp => {
-          selected.push({
-            id: Date.now() + Math.floor(Math.random() * 1000),
-            name_en: cp.name_en,
-            name_ta: cp.name_ta || cp.name_en,
-            category: cp.category,
-            default_unit: cp.default_unit || 'kg',
-            is_active: true,
-            is_custom: true
-          });
-        });
-      }
-      await LocalDB.saveVendorProducts(selected);
-      return {
-        status: "saved_offline",
-        vendor_products_count: selected.length,
-        message_en: "Onboarding saved offline",
-        message_ta: "ஆஃப்லைனில் பதிவு செய்யப்பட்டது"
-      };
-    }
+    // Mark as completed ONLY after server successfully saves
+    await LocalDB.setOnboardingCompleted(true, uid);
+    await LocalDB.setSelectedCategories(data.selected_categories || [], uid);
+
+    // Refresh vendor products from backend into local db
+    const vProducts = await this.getVendorProducts(uid);
+    await LocalDB.saveVendorProducts(vProducts, uid);
+    return res;
   }
 
   async getVendorProducts(userId = null) {
+    let uid = userId;
+    if (!uid) {
+      const u = await LocalDB.getAuthUser();
+      uid = u?.id || 1;
+    }
     try {
-      let uid = userId;
-      if (!uid) {
-        const u = await LocalDB.getAuthUser();
-        uid = u?.id || 1;
-      }
       const products = await this._request(`/api/vendor/products?user_id=${uid}`);
-      await LocalDB.saveVendorProducts(products);
+      await LocalDB.saveVendorProducts(products, uid);
       return products;
     } catch (e) {
-      return await LocalDB.getVendorProducts();
+      return await LocalDB.getVendorProducts(uid);
     }
   }
 
   async addCustomProduct(product) {
+    const u = await LocalDB.getAuthUser();
+    const uid = product.user_id || u?.id || 1;
+    const payload = { ...product, user_id: uid };
     try {
       const res = await this._request('/api/vendor/custom-product', {
         method: 'POST',
-        body: JSON.stringify(product)
+        body: JSON.stringify(payload)
       });
-      await LocalDB.addCustomVendorProduct(res);
+      await LocalDB.addCustomVendorProduct(res, uid);
       return res;
     } catch (e) {
-      return await LocalDB.addCustomVendorProduct(product);
+      return await LocalDB.addCustomVendorProduct(payload, uid);
     }
   }
 
   async toggleVendorProduct(itemId, isActive) {
+    const u = await LocalDB.getAuthUser();
+    const uid = u?.id || 1;
     try {
-      await this._request(`/api/vendor/products/${itemId}?is_active=${isActive}`, {
+      await this._request(`/api/vendor/products/${itemId}?is_active=${isActive}&user_id=${uid}`, {
         method: 'PUT'
       });
     } catch (e) {
       // ignore
     }
-    return await LocalDB.toggleVendorProduct(itemId, isActive);
+    return await LocalDB.toggleVendorProduct(itemId, isActive, uid);
   }
 
   // --- Daily Sales Entry & Automatic Report ---

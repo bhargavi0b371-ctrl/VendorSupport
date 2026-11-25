@@ -56,6 +56,9 @@ def get_onboarding_catalog(db: Session = Depends(get_db)):
             categorized_items["groceries"].append(it)
         elif "cloth" in c or "access" in c:
             categorized_items["clothes"].append(it)
+        elif "house" in c or "home" in c:
+            if "household_items" in categorized_items:
+                categorized_items["household_items"].append(it)
         else:
             if "other" in categorized_items:
                 categorized_items["other"].append(it)
@@ -70,12 +73,14 @@ def get_onboarding_catalog(db: Session = Depends(get_db)):
 @router.post("/onboarding", response_model=UserResponse)
 def submit_onboarding(payload: OnboardingSubmit, db: Session = Depends(get_db)):
     """Saves vendor category choices, selected products, and any custom products."""
+    item_ids = payload.selected_item_ids if payload.selected_item_ids is not None else (payload.product_ids or [])
+    customs = payload.custom_items if payload.custom_items is not None else (payload.custom_products or [])
     user = save_vendor_onboarding(
         db=db,
         user_id=payload.user_id,
         selected_categories=payload.selected_categories,
-        selected_item_ids=payload.selected_item_ids,
-        custom_items=payload.custom_items
+        selected_item_ids=item_ids,
+        custom_items=customs
     )
     return user
 

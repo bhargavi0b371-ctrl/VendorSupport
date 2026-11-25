@@ -31,6 +31,7 @@ export const SettingsScreen = ({ onNavigate, onLogout }) => {
   const loadSettings = async () => {
     try {
       const u = await LocalDB.getAuthUser();
+      const uid = u ? u.id : 1;
       if (u) {
         setProfile(u);
         setEditShopName(u.shop_name || '');
@@ -41,7 +42,7 @@ export const SettingsScreen = ({ onNavigate, onLogout }) => {
 
       const settings = await api.getUserSettings();
       if (settings && settings.default_margin_pct) setMarginPct(settings.default_margin_pct);
-      const itms = await api.getVendorProducts();
+      const itms = await api.getVendorProducts(uid);
       setItems(itms);
     } catch (e) {
       console.warn("Failed to load settings", e);
@@ -86,12 +87,14 @@ export const SettingsScreen = ({ onNavigate, onLogout }) => {
   };
 
   const toggleItemActive = async (itemId) => {
-    const it = items.find(x => x.id === itemId);
+    const it = items.find(x => x.id === itemId || x.item_id === itemId);
     if (!it) return;
     const nextState = it.is_active === false ? true : false;
-    setItems(items.map(x => x.id === itemId ? { ...x, is_active: nextState } : x));
+    setItems(items.map(x => (x.id === itemId || x.item_id === itemId) ? { ...x, is_active: nextState } : x));
     try {
-      await api.toggleVendorProduct(itemId, nextState);
+      const u = profile || await LocalDB.getAuthUser();
+      const uid = u ? u.id : 1;
+      await api.toggleVendorProduct(itemId, nextState, uid);
     } catch (e) {
       console.warn("Toggle vendor product error", e);
     }

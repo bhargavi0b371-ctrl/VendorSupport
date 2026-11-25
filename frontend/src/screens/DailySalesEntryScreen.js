@@ -53,10 +53,11 @@ export const DailySalesEntryScreen = ({ onNavigate, onReportGenerated }) => {
     setLoading(true);
     try {
       const u = await LocalDB.getAuthUser();
+      const uid = u?.id || 1;
       if (u) setCurrentUser(u);
 
       // Load ONLY the vendor's chosen products
-      const products = await api.getVendorProducts();
+      const products = await api.getVendorProducts(uid);
       const activeProducts = (products || []).filter(p => p.is_active !== false);
       setVendorProducts(activeProducts);
 
@@ -207,24 +208,60 @@ export const DailySalesEntryScreen = ({ onNavigate, onReportGenerated }) => {
 
     setSubmitting(true);
     try {
-      const itemsPayload = activeEntriesList.map(it => {
+      // Validate quantities and prices
+      for (const it of activeEntriesList) {
         const qtySold = parseFloat(it.quantity_sold) || 0;
         const sp = parseFloat(it.selling_price) || 0;
         const cp = parseFloat(it.purchase_cost) || 0;
         const unsold = parseFloat(it.unsold_quantity) || 0;
         const damaged = parseFloat(it.damaged_quantity) || 0;
-        return {
-          item_id: it.item_id,
-          quantity_sold: qtySold,
-          selling_price: sp,
-          selling_price_per_unit: sp,
-          purchase_cost: cp,
-          purchase_cost_per_unit: cp,
-          unsold_quantity: unsold,
-          damaged_quantity: damaged,
-          notes: null
-        };
-      });
+
+        if (qtySold < 0 || sp < 0 || cp < 0 || unsold < 0 || damaged < 0) {
+          Alert.alert(
+            language === 'ta' ? 'பிழை' : 'Validation Error',
+            language === 'ta' ? 'எதிர்மறை மதிப்புகள் அனுமதிக்கப்படாது.' : 'Quantities and prices cannot be negative.'
+          );
+          setSubmitting(false);
+          return;
+        }
+      }
+
+      // Exclude completely unused products from submitted sales records!
+      const usedItemsPayload = activeEntriesList
+        .filter(it => {
+          const qtySold = parseFloat(it.quantity_sold) || 0;
+          const unsold = parseFloat(it.unsold_quantity) || 0;
+          const damaged = parseFloat(it.damaged_quantity) || 0;
+          return qtySold > 0 || unsold > 0 || damaged > 0;
+        })
+        .map(it => {
+          const qtySold = parseFloat(it.quantity_sold) || 0;
+          const sp = parseFloat(it.selling_price) || 0;
+          const cp = parseFloat(it.purchase_cost) || 0;
+          const unsold = parseFloat(it.unsold_quantity) || 0;
+          const damaged = parseFloat(it.damaged_quantity) || 0;
+          return {
+            item_id: it.item_id,
+            unit: it.unit || 'kg',
+            quantity_sold: qtySold,
+            selling_price: sp,
+            selling_price_per_unit: sp,
+            purchase_cost: cp,
+            purchase_cost_per_unit: cp,
+            unsold_quantity: unsold,
+            damaged_quantity: damaged,
+            notes: null
+          };
+        });
+
+      if (usedItemsPayload.length === 0) {
+        Alert.alert(
+          language === 'ta' ? 'விற்பனை பதிவு இல்லை' : 'No Sales Entered',
+          language === 'ta' ? 'குறைந்தபட்சம் 1 பொருளுக்கான விற்பனை அல்லது இருப்பை உள்ளிடவும்.' : 'Please enter sales or stock for at least one item.'
+        );
+        setSubmitting(false);
+        return;
+      }
 
       const tCost = parseFloat(transportCost) || 0;
       const rCost = parseFloat(rentCost) || 0;
@@ -261,7 +298,7 @@ export const DailySalesEntryScreen = ({ onNavigate, onReportGenerated }) => {
           credit_pending: pCred
         },
         notes: null,
-        items: itemsPayload
+        items: usedItemsPayload
       };
 
       const result = await api.submitDailyEntry(payload);

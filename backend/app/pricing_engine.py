@@ -3,7 +3,7 @@ import json
 from typing import List, Dict, Any, Optional
 from sqlalchemy.orm import Session
 from sqlalchemy import desc
-from .models import Item, Market, MarketPrice, Festival, User
+from .models import Item, Market, MarketPrice, Festival, User, Purchase, DailyEntry, DailyEntryItem
 from .schemas import SmartPricingItem, MarketRankingItem
 
 def calculate_smart_pricing(db: Session, user_id: int = 1) -> List[SmartPricingItem]:
@@ -42,12 +42,49 @@ def calculate_smart_pricing(db: Session, user_id: int = 1) -> List[SmartPricingI
     results = []
 
     for item in items:
-        # Latest price for this item
+        # Differentiate agricultural commodities from non-agricultural products
+        is_agri = item.category in ["vegetables", "fruits", "fruits_vegetables", "flowers"]
+
+        # Latest market price row
         latest_price_row = db.query(MarketPrice).filter(
             MarketPrice.item_id == item.id
-        ).order_by(desc(MarketPrice.date), MarketPrice.id).first()
+        ).order_by(desc(MarketPrice.date), desc(MarketPrice.id)).first()
 
-        wholesale_cost = latest_price_row.modal_price if latest_price_row else 30.0
+        # Check vendor-entered purchase cost
+        vendor_purchase = db.query(Purchase).filter(
+            Purchase.user_id == user_id,
+            Purchase.item_id == item.id
+        ).order_by(desc(Purchase.purchase_date), desc(Purchase.id)).first()
+
+        vendor_daily_cost = db.query(DailyEntryItem).join(DailyEntry).filter(
+            DailyEntry.user_id == user_id,
+            DailyEntryItem.item_id == item.id,
+            DailyEntryItem.purchase_cost_per_unit > 0
+        ).order_by(desc(DailyEntry.date), desc(DailyEntryItem.id)).first()
+
+        if not is_agri:
+            if vendor_purchase and vendor_purchase.unit_cost > 0:
+                wholesale_cost = vendor_purchase.unit_cost
+                source_label = "manual_vendor_purchase"
+            elif vendor_daily_cost and vendor_daily_cost.purchase_cost_per_unit > 0:
+                wholesale_cost = vendor_daily_cost.purchase_cost_per_unit
+                source_label = "manual_vendor_entry"
+            elif latest_price_row:
+                wholesale_cost = latest_price_row.modal_price
+                source_label = latest_price_row.source or "manual_entry"
+            else:
+                wholesale_cost = 40.0
+                source_label = "catalog_default"
+        else:
+            if latest_price_row:
+                wholesale_cost = latest_price_row.modal_price
+                source_label = latest_price_row.source or "agmarknet_live"
+            elif vendor_purchase and vendor_purchase.unit_cost > 0:
+                wholesale_cost = vendor_purchase.unit_cost
+                source_label = "manual_vendor_purchase"
+            else:
+                wholesale_cost = 30.0
+                source_label = "agmarknet_mock"
 
         # Yesterday's price to check trend
         prev_price_row = db.query(MarketPrice).filter(
@@ -125,6 +162,7 @@ def calculate_smart_pricing(db: Session, user_id: int = 1) -> List[SmartPricingI
             festival_tag=festival_tag,
             yesterday_price=round(yesterday_price, 1),
             price_trend=trend,
+            price_source=source_label,
             icon=item.icon,
             color=item.color
         ))

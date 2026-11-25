@@ -14,7 +14,8 @@ CATEGORIES_CATALOG = [
     {"id": "street_food", "name_en": "Street Food", "name_ta": "தெருவோர உணவு / தின்பண்டங்கள்", "icon": "food"},
     {"id": "tea_coffee", "name_en": "Tea / Coffee", "name_ta": "டீ / காபி", "icon": "coffee"},
     {"id": "groceries", "name_en": "Groceries", "name_ta": "மளிகை பொருட்கள்", "icon": "basket"},
-    {"id": "clothes", "name_en": "Clothes", "name_ta": "துணிமணிகள் / அணிகலன்கள்", "icon": "tshirt-crew"},
+    {"id": "clothes", "name_en": "Clothes & Accessories", "name_ta": "துணிமணிகள் மற்றும் அணிகலன்கள்", "icon": "tshirt-crew"},
+    {"id": "household_items", "name_en": "Household Items", "name_ta": "வீட்டு உபயோக பொருட்கள்", "icon": "home-outline"},
     {"id": "other", "name_en": "Other", "name_ta": "மற்றவை", "icon": "dots-horizontal-circle"}
 ]
 
@@ -65,12 +66,13 @@ PREDEFINED_ITEMS = [
     {"id": 34, "name_en": "Sukku Coffee", "name_ta": "சுக்கு காபி", "category": "tea_coffee", "default_unit": "cup", "icon": "coffee-outline", "color": "#5D4037"},
     {"id": 35, "name_en": "Badam Milk", "name_ta": "பாதாம் பால்", "category": "tea_coffee", "default_unit": "cup", "icon": "cup", "color": "#FFE082"},
 
-    # Groceries: ["Rice", "Dal", "Sugar", "Cooking Oil", "Tamarind"]
+    # Groceries: ["Rice", "Dal", "Sugar", "Cooking Oil", "Tamarind", "Biscuit"]
     {"id": 36, "name_en": "Rice", "name_ta": "அரிசி", "category": "groceries", "default_unit": "kg", "icon": "grain", "color": "#F5F5F5"},
     {"id": 37, "name_en": "Dal", "name_ta": "பருப்பு", "category": "groceries", "default_unit": "kg", "icon": "seed", "color": "#FBC02D"},
     {"id": 38, "name_en": "Sugar", "name_ta": "சர்க்கரை", "category": "groceries", "default_unit": "kg", "icon": "cube-outline", "color": "#ECEFF1"},
     {"id": 39, "name_en": "Cooking Oil", "name_ta": "சமையல் எண்ணெய்", "category": "groceries", "default_unit": "litre", "icon": "bottle-tonic", "color": "#FFC107"},
     {"id": 40, "name_en": "Tamarind", "name_ta": "புளி", "category": "groceries", "default_unit": "kg", "icon": "seed-outline", "color": "#4E342E"},
+    {"id": 50, "name_en": "Biscuit", "name_ta": "பிஸ்கட்", "category": "groceries", "default_unit": "packet", "icon": "cookie", "color": "#D7CCC8"},
 
     # Clothes: ["Saree", "Nighty", "Lungi", "Leggings", "Bangles"]
     {"id": 41, "name_en": "Saree", "name_ta": "சேலை", "category": "clothes", "default_unit": "piece", "icon": "tshirt-crew", "color": "#C2185B"},
@@ -78,6 +80,12 @@ PREDEFINED_ITEMS = [
     {"id": 43, "name_en": "Lungi", "name_ta": "லுங்கி", "category": "clothes", "default_unit": "piece", "icon": "hanger", "color": "#388E3C"},
     {"id": 44, "name_en": "Leggings", "name_ta": "லெக்கின்ஸ்", "category": "clothes", "default_unit": "piece", "icon": "tshirt-crew", "color": "#00897B"},
     {"id": 45, "name_en": "Bangles", "name_ta": "வளையல்கள்", "category": "clothes", "default_unit": "set", "icon": "circle-outline", "color": "#FFB300"},
+
+    # Household Items: ["Broom", "Bucket", "Candle", "Agarbatti"]
+    {"id": 51, "name_en": "Broom", "name_ta": "துடைப்பம்", "category": "household_items", "default_unit": "piece", "icon": "broom", "color": "#795548"},
+    {"id": 52, "name_en": "Bucket", "name_ta": "வாளி", "category": "household_items", "default_unit": "piece", "icon": "bucket", "color": "#1976D2"},
+    {"id": 53, "name_en": "Candle", "name_ta": "மெழுகுவர்த்தி", "category": "household_items", "default_unit": "packet", "icon": "candle", "color": "#FBC02D"},
+    {"id": 54, "name_en": "Agarbatti", "name_ta": "ஊதுபத்தி", "category": "household_items", "default_unit": "packet", "icon": "flare", "color": "#F57C00"},
 
     # Other
     {"id": 46, "name_en": "Coconut", "name_ta": "தேங்காய்", "category": "other", "default_unit": "piece", "icon": "circle", "color": "#8D6E63"},

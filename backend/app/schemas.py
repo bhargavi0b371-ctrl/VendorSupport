@@ -103,9 +103,11 @@ class OnboardingCategory(BaseModel):
 
 class OnboardingSubmit(BaseModel):
     user_id: int = 1
-    selected_categories: List[str]
-    selected_item_ids: List[int]
-    custom_items: Optional[List[ItemCreate]] = []
+    selected_categories: List[str] = []
+    selected_item_ids: Optional[List[int]] = None
+    product_ids: Optional[List[int]] = None
+    custom_items: Optional[List[ItemCreate]] = None
+    custom_products: Optional[List[ItemCreate]] = None
 
 class CustomProductCreate(BaseModel):
     user_id: int = 1
@@ -352,6 +354,7 @@ class SmartPricingItem(BaseModel):
     festival_tag: Optional[str] = None
     yesterday_price: Optional[float] = None
     price_trend: str = "stable"
+    price_source: Optional[str] = "mock"
     icon: str
     color: str
 

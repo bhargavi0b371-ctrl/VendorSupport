@@ -281,35 +281,46 @@ export const LocalDB = {
   },
 
   // --- Onboarding & Vendor Products ---
-  async getOnboardingCompleted() {
+  async _getUserId(userId) {
+    if (userId) return userId;
+    const u = await this.getAuthUser();
+    return u?.id || 1;
+  },
+
+  async getOnboardingCompleted(userId) {
     try {
-      const val = await AsyncStorage.getItem(KEYS.ONBOARDING_COMPLETED);
+      const uid = await this._getUserId(userId);
+      const val = await AsyncStorage.getItem(`${KEYS.ONBOARDING_COMPLETED}_${uid}`);
       return val === 'true';
     } catch (e) {
       return false;
     }
   },
 
-  async setOnboardingCompleted(completed) {
-    await AsyncStorage.setItem(KEYS.ONBOARDING_COMPLETED, completed ? 'true' : 'false');
+  async setOnboardingCompleted(completed, userId) {
+    const uid = await this._getUserId(userId);
+    await AsyncStorage.setItem(`${KEYS.ONBOARDING_COMPLETED}_${uid}`, completed ? 'true' : 'false');
   },
 
-  async getSelectedCategories() {
+  async getSelectedCategories(userId) {
     try {
-      const raw = await AsyncStorage.getItem(KEYS.SELECTED_CATEGORIES);
+      const uid = await this._getUserId(userId);
+      const raw = await AsyncStorage.getItem(`${KEYS.SELECTED_CATEGORIES}_${uid}`);
       return raw ? JSON.parse(raw) : [];
     } catch (e) {
       return [];
     }
   },
 
-  async setSelectedCategories(categories) {
-    await AsyncStorage.setItem(KEYS.SELECTED_CATEGORIES, JSON.stringify(categories));
+  async setSelectedCategories(categories, userId) {
+    const uid = await this._getUserId(userId);
+    await AsyncStorage.setItem(`${KEYS.SELECTED_CATEGORIES}_${uid}`, JSON.stringify(categories));
   },
 
-  async getVendorProducts() {
+  async getVendorProducts(userId) {
     try {
-      const raw = await AsyncStorage.getItem(KEYS.VENDOR_PRODUCTS);
+      const uid = await this._getUserId(userId);
+      const raw = await AsyncStorage.getItem(`${KEYS.VENDOR_PRODUCTS}_${uid}`);
       if (raw) return JSON.parse(raw);
       return [];
     } catch (e) {
@@ -317,12 +328,14 @@ export const LocalDB = {
     }
   },
 
-  async saveVendorProducts(products) {
-    await AsyncStorage.setItem(KEYS.VENDOR_PRODUCTS, JSON.stringify(products));
+  async saveVendorProducts(products, userId) {
+    const uid = await this._getUserId(userId);
+    await AsyncStorage.setItem(`${KEYS.VENDOR_PRODUCTS}_${uid}`, JSON.stringify(products));
   },
 
-  async addCustomVendorProduct(product) {
-    const products = await this.getVendorProducts();
+  async addCustomVendorProduct(product, userId) {
+    const uid = await this._getUserId(userId);
+    const products = await this.getVendorProducts(uid);
     const newProduct = {
       id: product.id || Date.now(),
       name_en: product.name_en,
@@ -335,14 +348,15 @@ export const LocalDB = {
       is_custom: true
     };
     products.push(newProduct);
-    await this.saveVendorProducts(products);
+    await this.saveVendorProducts(products, uid);
     return newProduct;
   },
 
-  async toggleVendorProduct(itemId, isActive) {
-    const products = await this.getVendorProducts();
-    const updated = products.map(p => p.id === itemId ? { ...p, is_active: isActive } : p);
-    await this.saveVendorProducts(updated);
+  async toggleVendorProduct(itemId, isActive, userId) {
+    const uid = await this._getUserId(userId);
+    const products = await this.getVendorProducts(uid);
+    const updated = products.map(p => (p.item_id === itemId || p.id === itemId) ? { ...p, is_active: isActive } : p);
+    await this.saveVendorProducts(updated, uid);
     return updated;
   },
 

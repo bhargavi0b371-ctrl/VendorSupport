@@ -312,7 +312,8 @@ def create_daily_entry(db: Session, entry_in: DailyEntrySubmit) -> DailyEntry:
         })
 
     gross_profit = round(total_revenue - total_cogs, 2)
-    net_profit = round(gross_profit - total_expenses, 2)
+    # Net profit accounts for total daily expenses AND wastage loss without double-counting
+    net_profit = round(gross_profit - total_expenses - total_wastage, 2)
     margin_pct = round((net_profit / total_revenue * 100), 1) if total_revenue > 0 else 0.0
 
     # If existing entry for this date and user, update it
@@ -383,13 +384,15 @@ def create_daily_entry(db: Session, entry_in: DailyEntrySubmit) -> DailyEntry:
         )
         db.add(de_item)
 
-        # Also insert into sales table for backwards compatibility
+        # Also insert into sales table for backwards compatibility with correct item unit
         if it_dict["quantity_sold"] > 0:
+            item_obj = db.query(Item).filter(Item.id == it_dict["item_id"]).first()
+            item_unit = item_obj.default_unit if item_obj and item_obj.default_unit else "kg"
             db.add(Sale(
                 user_id=entry_in.user_id,
                 item_id=it_dict["item_id"],
                 quantity=it_dict["quantity_sold"],
-                unit="kg",
+                unit=item_unit,
                 amount=it_dict["item_revenue"],
                 unit_price=it_dict["selling_price_per_unit"],
                 sale_date=entry_date,
@@ -403,6 +406,7 @@ def create_daily_entry(db: Session, entry_in: DailyEntrySubmit) -> DailyEntry:
 
 def get_daily_sales_report(db: Session, user_id: int = 1, target_date: Optional[str] = None) -> DailySalesReportResponse:
     """Generates the comprehensive daily sales report with product breakdowns, best/lowest selling, and AI insights."""
+    requested_explicit_date = bool(target_date)
     if not target_date:
         target_date = datetime.date.today().strftime("%Y-%m-%d")
 
@@ -411,12 +415,14 @@ def get_daily_sales_report(db: Session, user_id: int = 1, target_date: Optional[
         DailyEntry.date == target_date
     ).first()
 
-    # If no daily entry for today, check latest available entry or synthesize from sales & purchases
-    if not entry:
+    # If no daily entry for today and not explicitly requested, check latest available entry
+    if not entry and not requested_explicit_date:
         entry = db.query(DailyEntry).filter(DailyEntry.user_id == user_id).order_by(desc(DailyEntry.date)).first()
+        if entry:
+            target_date = entry.date
 
     if not entry:
-        # Default empty structure if no entries ever recorded
+        # Default empty structure if no entries found for the target date
         return DailySalesReportResponse(
             entry_id=None,
             user_id=user_id,
@@ -564,21 +570,57 @@ def generate_ai_insights(
     promo_offers = []
     promo_offers_ta = []
 
+    # Check previous daily entry to detect real historical sales trends
+    prev_entry = db.query(DailyEntry).filter(
+        DailyEntry.user_id == user_id,
+        DailyEntry.date < (entry.date if entry else datetime.date.today().strftime("%Y-%m-%d"))
+    ).order_by(desc(DailyEntry.date)).first()
+
+    prev_items_map = {}
+    if prev_entry:
+        for p_it in prev_entry.items:
+            prev_items_map[p_it.item_id] = p_it.quantity_sold
+
     if product_details:
         for p in product_details:
             total_stock = p.quantity_sold + p.unsold_quantity + p.damaged_quantity
             sell_through = (p.quantity_sold / total_stock) if total_stock > 0 else 0.0
 
-            # 1. Stock Advice
-            if sell_through >= 0.85:
+            # 1. Stock Advice & Historical Sales Trends
+            rec_purchase = max(0.0, round((p.quantity_sold * 1.1) - p.unsold_quantity, 1))
+
+            if p.item_id in prev_items_map and prev_items_map[p.item_id] > 0:
+                prev_qty = prev_items_map[p.item_id]
+                growth_pct = round(((p.quantity_sold - prev_qty) / prev_qty) * 100.0, 1)
+                if growth_pct >= 10.0:
+                    stock_advice.append({
+                        "item_id": p.item_id,
+                        "name_en": p.name_en,
+                        "name_ta": p.name_ta,
+                        "action": "stock_more",
+                        "percentage": f"+{growth_pct}%",
+                        "message_en": f"📈 {p.name_en} sales increased +{growth_pct}% vs previous day. Recommended purchase tomorrow: {rec_purchase} {p.unit}.",
+                        "message_ta": f"📈 {p.name_ta} விற்பனை +{growth_pct}% அதிகரித்துள்ளது. நாளை பரிந்துரைக்கப்படும் கொள்முதல்: {rec_purchase} {p.unit}."
+                    })
+                elif growth_pct <= -15.0:
+                    stock_advice.append({
+                        "item_id": p.item_id,
+                        "name_en": p.name_en,
+                        "name_ta": p.name_ta,
+                        "action": "stock_less",
+                        "percentage": f"{growth_pct}%",
+                        "message_en": f"📉 {p.name_en} sales slowed by {abs(growth_pct)}%. Recommended purchase tomorrow: {rec_purchase} {p.unit}.",
+                        "message_ta": f"📉 {p.name_ta} விற்பனை {abs(growth_pct)}% குறைந்துள்ளது. நாளை பரிந்துரைக்கப்படும் கொள்முதல்: {rec_purchase} {p.unit}."
+                    })
+            elif sell_through >= 0.85:
                 stock_advice.append({
                     "item_id": p.item_id,
                     "name_en": p.name_en,
                     "name_ta": p.name_ta,
                     "action": "stock_more",
                     "percentage": "+20%",
-                    "message_en": f"Stock 20% more {p.name_en} tomorrow (sold out {int(sell_through*100)}% of stock).",
-                    "message_ta": f"நாளை {p.name_ta} 20% அதிகமாக வாங்கவும் ({int(sell_through*100)}% விற்று தீர்ந்துவிட்டது)."
+                    "message_en": f"Stock {rec_purchase} {p.unit} of {p.name_en} tomorrow (sold out {int(sell_through*100)}% of stock).",
+                    "message_ta": f"நாளை {p.name_ta} {rec_purchase} {p.unit} வாங்கவும் ({int(sell_through*100)}% விற்று தீர்ந்துவிட்டது)."
                 })
             elif p.damaged_quantity > 0 or sell_through < 0.6:
                 stock_advice.append({
@@ -587,11 +629,21 @@ def generate_ai_insights(
                     "name_ta": p.name_ta,
                     "action": "stock_less",
                     "percentage": "-15%",
-                    "message_en": f"Stock 15% less {p.name_en} to reduce unsold surplus.",
-                    "message_ta": f"தேவைக்கு அதிகமாக தேங்காமல் இருக்க {p.name_ta} 15% குறைவாக எடுக்கவும்."
+                    "message_en": f"Unsold stock: {p.unsold_quantity} {p.unit}. Stock {rec_purchase} {p.unit} tomorrow to avoid excess.",
+                    "message_ta": f"மீதமுள்ள சரக்கு: {p.unsold_quantity} {p.unit}. தேவைக்கு மேல் தேங்காமல் இருக்க நாளை {rec_purchase} {p.unit} வாங்கவும்."
                 })
 
-            # 2. Highest profit items
+            # 2. Low profit margin detection & selling price recommendation
+            if p.gross_margin_pct < 18.0 and p.quantity_sold > 0:
+                rec_sp = round(p.purchase_cost_per_unit * 1.25, 1)
+                sales_tips.append(
+                    f"Low margin on {p.name_en} ({p.gross_margin_pct}%). Consider adjusting selling price to ₹{rec_sp}/{p.unit} to achieve 25% profit margin."
+                )
+                sales_tips_ta.append(
+                    f"{p.name_ta} லாப வரம்பு குறைவு ({p.gross_margin_pct}%). 25% லாபம் பெற விற்பனை விலையை ₹{rec_sp}/{p.unit} என மாற்றலாம்."
+                )
+
+            # 3. Highest profit items
             if p.gross_profit > 100:
                 highest_profit.append({
                     "item_id": p.item_id,
@@ -601,7 +653,7 @@ def generate_ai_insights(
                     "margin": f"{p.gross_margin_pct}%"
                 })
 
-            # 3. Wastage Tips for damaged items
+            # 4. Wastage Tips for damaged items
             if p.damaged_quantity > 0:
                 loss_amt = int(p.wastage_loss)
                 wastage_tips.append(f"Store {p.name_en} in shade with damp gunny bag to avoid ₹{loss_amt} spoilage loss.")

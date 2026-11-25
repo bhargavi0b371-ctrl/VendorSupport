@@ -45,8 +45,8 @@ const MainNavigator = () => {
         return;
       }
       setAuthUser(user);
-      const completed = await LocalDB.getOnboardingCompleted();
-      setIsOnboarded(completed);
+      const completed = await LocalDB.getOnboardingCompleted(user.id);
+      setIsOnboarded(Boolean(user.onboarding_completed || completed));
     } catch (e) {
       setAuthUser(false);
       setIsOnboarded(false);
@@ -56,10 +56,11 @@ const MainNavigator = () => {
   const handleAuthSuccess = async (user) => {
     setAuthUser(user);
     try {
-      const completed = await LocalDB.getOnboardingCompleted();
-      setIsOnboarded(completed || user.onboarding_completed || false);
+      const completed = await LocalDB.getOnboardingCompleted(user.id);
+      const isComplete = Boolean(user.onboarding_completed || completed);
+      setIsOnboarded(isComplete);
     } catch (e) {
-      setIsOnboarded(false);
+      setIsOnboarded(Boolean(user.onboarding_completed));
     }
     setCurrentScreen('home');
   };

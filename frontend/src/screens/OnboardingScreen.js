@@ -63,6 +63,7 @@ export const OnboardingScreen = ({ onComplete, onNavigate, isEditMode = false })
     if (cId === 'tea_coffee' || cId === 'teacoffee') return cat.includes('tea') || cat.includes('coffee') || cat.includes('beverage');
     if (cId === 'groceries' || cId === 'grocery') return cat.includes('groc');
     if (cId === 'clothes' || cId === 'clothes_accessories' || cId === 'clothing') return cat.includes('cloth') || cat.includes('wear') || cat.includes('access');
+    if (cId === 'household_items' || cId === 'household' || cId === 'house') return cat.includes('house') || cat.includes('home');
     return cat === cId;
   };
 
@@ -73,14 +74,16 @@ export const OnboardingScreen = ({ onComplete, onNavigate, isEditMode = false })
   const loadCatalog = async () => {
     setLoading(true);
     try {
+      const u = await LocalDB.getAuthUser();
+      const uid = u?.id || 1;
       const catalog = await api.getOnboardingCatalog();
       setCategories(catalog.categories || []);
       const fetchedProducts = catalog.all_predefined_items || catalog.predefined_products || [];
       setAllProducts(fetchedProducts);
 
-      // If user had existing selections or was already onboarded, load them
-      const savedCats = await LocalDB.getSelectedCategories();
-      const existingVendorProducts = await api.getVendorProducts();
+      // If user had existing selections or was already onboarded, load them for this user
+      const savedCats = await LocalDB.getSelectedCategories(uid);
+      const existingVendorProducts = await api.getVendorProducts(uid);
 
       if (savedCats && savedCats.length > 0) {
         setSelectedCategories(savedCats);
@@ -204,6 +207,8 @@ export const OnboardingScreen = ({ onComplete, onNavigate, isEditMode = false })
 
     setSaving(true);
     try {
+      const u = await LocalDB.getAuthUser();
+      const uid = u?.id || 1;
       const numericProductIds = Array.from(selectedProductIds).filter(id => typeof id === 'number');
       const customProductsToSave = customProducts.filter(cp => selectedProductIds.has(cp.id)).map(cp => ({
         name_en: cp.name_en,
@@ -213,19 +218,27 @@ export const OnboardingScreen = ({ onComplete, onNavigate, isEditMode = false })
       }));
 
       const payload = {
+        user_id: uid,
         selected_categories: selectedCategories,
+        selected_item_ids: numericProductIds,
         product_ids: numericProductIds,
+        custom_items: customProductsToSave,
         custom_products: customProductsToSave
       };
 
       await api.submitOnboarding(payload);
-      await LocalDB.setOnboardingCompleted(true);
       if (onComplete) {
         onComplete();
       }
     } catch (e) {
       console.warn("Save onboarding error", e);
-      if (onComplete) onComplete();
+      Alert.alert(
+        language === 'ta' ? 'சேமிப்பதில் பிழை' : 'Save Failed',
+        language === 'ta'
+          ? 'பொருட்களை சேமிக்க முடியவில்லை. தயவுசெய்து உங்கள் இணைய இணைப்பை சரிபார்த்து மீண்டும் முயற்சிக்கவும்.'
+          : 'Failed to save products to server. Please check your connection and retry.'
+      );
+      // DO NOT navigate on failure
     } finally {
       setSaving(false);
     }

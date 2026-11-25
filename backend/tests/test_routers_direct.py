@@ -109,14 +109,14 @@ def test_all_routers():
     # Total COGS: 500 + 525 = 1025
     # Gross Profit: 1550 - 1025 = 525
     # Total Expenses: 50 + 100 + 20 + 10 = 180
-    # Net Profit: 525 - 180 = 345
+    # Net Profit: 525 - 180 - 25 = 320
     # Wastage Loss: 25.0
     # Unsold Stock Value: 75 + 175 = 250.0
     assert report.total_sales_revenue == 1550.0, f"Expected 1550, got {report.total_sales_revenue}"
     assert report.total_cogs == 1025.0, f"Expected 1025, got {report.total_cogs}"
     assert report.gross_profit == 525.0, f"Expected 525, got {report.gross_profit}"
     assert report.total_daily_expenses == 180.0, f"Expected 180, got {report.total_daily_expenses}"
-    assert report.net_profit == 345.0, f"Expected 345, got {report.net_profit}"
+    assert report.net_profit == 320.0, f"Expected 320, got {report.net_profit}"
     assert report.total_wastage_loss == 25.0, f"Expected 25, got {report.total_wastage_loss}"
     assert report.total_unsold_stock_value == 250.0, f"Expected 250, got {report.total_unsold_stock_value}"
     assert report.payments_breakdown.cash == 800.0
@@ -128,7 +128,7 @@ def test_all_routers():
 
     # 3. Retrieve Report by Date & History
     fetched_rep = get_report_by_date(date="2026-11-22", user_id=1, db=db)
-    assert fetched_rep.net_profit == 345.0
+    assert fetched_rep.net_profit == 320.0
     print("[PASS] Daily Sales Report: Retrieved by date successfully")
 
     history = get_reports_history(user_id=1, db=db)

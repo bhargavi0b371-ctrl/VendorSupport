@@ -1,4 +1,5 @@
 import datetime
+import logging
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 from ..database import get_db
@@ -8,8 +9,10 @@ from ..crud import (
     get_markets, get_all_festivals, get_latest_market_prices,
     get_today_summary, get_vendor_products
 )
+from ..services.agmarknet_service import sync_live_agmarknet_bulletin
 
 router = APIRouter(prefix="/api/sync", tags=["Offline Sync"])
+logger = logging.getLogger(__name__)
 
 @router.post("", response_model=SyncResponse)
 def sync_offline_data(payload: SyncPushPayload, db: Session = Depends(get_db)):
@@ -32,6 +35,11 @@ def sync_offline_data(payload: SyncPushPayload, db: Session = Depends(get_db)):
     for d_in in payload.daily_entries:
         create_daily_entry(db, d_in)
         daily_count += 1
+
+    try:
+        sync_live_agmarknet_bulletin(db)
+    except Exception:
+        logger.exception("Live Agmarknet refresh failed during offline sync")
 
     return SyncResponse(
         status="synced",
