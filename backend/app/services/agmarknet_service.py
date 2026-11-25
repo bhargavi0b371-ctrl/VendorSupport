@@ -5,6 +5,9 @@ import datetime
 import logging
 from typing import List, Dict, Any, Optional, Tuple
 import httpx
+from dotenv import load_dotenv
+
+load_dotenv()
 from sqlalchemy.orm import Session
 from sqlalchemy import desc
 
@@ -351,7 +354,9 @@ def sync_live_agmarknet_bulletin(db: Session, api_key: Optional[str] = None) -> 
     """Ingests fresh wholesale prices from data.gov.in AGMARKNET or updates today's records."""
     seed_initial_mandi_prices(db)
     today_str = datetime.date.today().strftime("%Y-%m-%d")
-    env_api_key = api_key or os.getenv("AGMARKNET_API_KEY")
+    env_api_key = api_key or os.getenv("AGMARKNET_API_KEY") or os.getenv("DATA_GOV_IN_API_KEY")
+    if env_api_key:
+        env_api_key = env_api_key.strip()
     updated_count = 0
     source_name = "agmarknet_live" if env_api_key else "agmarknet_bulletin_cache"
 

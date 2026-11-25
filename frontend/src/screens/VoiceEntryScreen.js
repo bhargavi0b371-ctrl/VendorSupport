@@ -104,9 +104,15 @@ export const VoiceEntryScreen = ({ onNavigate }) => {
           </TouchableOpacity>
 
           <Text style={styles.micStatus}>
-            {isListening ? t('listening') : (isProcessing ? t('processing') : t('tapToSpeak'))}
+            {isListening
+              ? (language === 'ta' ? 'கேட்கிறது... முடிக்க மீண்டும் தொடவும்' : 'Listening... Tap again to finish & enter')
+              : (isProcessing ? t('processing') : (language === 'ta' ? 'பேச தொடங்க தொடவும்' : 'Tap to Start Speaking'))}
           </Text>
-          <Text style={styles.micHelp}>{t('speakNow')}</Text>
+          <Text style={styles.micHelp}>
+            {isListening
+              ? (language === 'ta' ? 'பேசி முடித்தவுடன் பட்டனை மீண்டும் தொட்டு பதிவு செய்யவும்' : 'Speak clearly, then tap this button once again to save')
+              : (language === 'ta' ? 'தொடங்கி பேசவும், முடிக்க மீண்டும் தொடவும்' : 'Click to start speaking, click again to finish')}
+          </Text>
 
           {/* REALTIME OR CAPTURED TRANSCRIPT */}
           {transcript ? (

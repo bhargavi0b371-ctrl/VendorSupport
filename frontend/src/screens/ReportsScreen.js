@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Dimensions } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Dimensions, RefreshControl } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { THEME } from '../constants/theme';
 import { useLanguage } from '../context/LanguageContext';
@@ -63,28 +63,40 @@ export const ReportsScreen = ({ onNavigate }) => {
     <View style={styles.screen}>
       <Header title={t('reportsTitle')} showBack onBack={() => onNavigate('home')} />
 
-      <ScrollView contentContainerStyle={styles.scrollContent}>
-        {/* PERIOD SELECTOR TABS */}
-        <View style={styles.tabsContainer}>
-          {['daily', 'weekly', 'monthly'].map((p) => {
-            const isSelected = period === p;
-            let tabLabel = t('dailyTab');
-            if (p === 'weekly') tabLabel = t('weeklyTab');
-            if (p === 'monthly') tabLabel = t('monthlyTab');
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        refreshControl={<RefreshControl refreshing={loading} onRefresh={() => fetchReports(period)} />}
+      >
+        {/* PERIOD SELECTOR TABS & REFRESH */}
+        <View style={styles.tabsRow}>
+          <View style={styles.tabsContainer}>
+            {['daily', 'weekly', 'monthly'].map((p) => {
+              const isSelected = period === p;
+              let tabLabel = t('dailyTab') || 'Daily';
+              if (p === 'weekly') tabLabel = t('weeklyTab') || 'Weekly';
+              if (p === 'monthly') tabLabel = t('monthlyTab') || 'Monthly';
 
-            return (
-              <TouchableOpacity
-                key={p}
-                onPress={() => setPeriod(p)}
-                style={[styles.tabBtn, isSelected && styles.tabBtnActive]}
-                activeOpacity={0.8}
-              >
-                <Text style={[styles.tabBtnText, isSelected && styles.tabBtnTextActive]}>
-                  {tabLabel.split(' ')[0]}
-                </Text>
-              </TouchableOpacity>
-            );
-          })}
+              return (
+                <TouchableOpacity
+                  key={p}
+                  onPress={() => setPeriod(p)}
+                  style={[styles.tabBtn, isSelected && styles.tabBtnActive]}
+                  activeOpacity={0.8}
+                >
+                  <Text style={[styles.tabBtnText, isSelected && styles.tabBtnTextActive]}>
+                    {tabLabel.split(' ')[0]}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+          <TouchableOpacity
+            onPress={() => fetchReports(period)}
+            style={styles.refreshIconBtn}
+            activeOpacity={0.7}
+          >
+            <MaterialCommunityIcons name="refresh" size={22} color={THEME.colors.primary} />
+          </TouchableOpacity>
         </View>
 
         {/* 3 SUMMARY CARDS */}
@@ -263,12 +275,28 @@ const styles = StyleSheet.create({
     padding: 16,
     paddingBottom: 40
   },
+  tabsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 16
+  },
   tabsContainer: {
+    flex: 1,
     flexDirection: 'row',
     backgroundColor: '#E5E7EB',
     borderRadius: 16,
-    padding: 4,
-    marginBottom: 16
+    padding: 4
+  },
+  refreshIconBtn: {
+    backgroundColor: '#FFFFFF',
+    width: 44,
+    height: 44,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1.5,
+    borderColor: '#E5E7EB'
   },
   tabBtn: {
     flex: 1,

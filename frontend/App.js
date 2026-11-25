@@ -7,6 +7,7 @@ import { SyncProvider } from './src/context/SyncContext';
 import { LocalDB } from './src/db/localDb';
 
 // Import Screens
+import { AuthScreen } from './src/screens/AuthScreen';
 import { HomeScreen } from './src/screens/HomeScreen';
 import { VoiceEntryScreen } from './src/screens/VoiceEntryScreen';
 import { PurchasesScreen } from './src/screens/PurchasesScreen';
@@ -21,22 +22,53 @@ import { MarketIntelligenceScreen } from './src/screens/MarketIntelligenceScreen
 
 const MainNavigator = () => {
   const [currentScreen, setCurrentScreen] = useState('home');
+  const [authUser, setAuthUser] = useState(null); // null = checking, false = show login, object = logged in
   const [isOnboarded, setIsOnboarded] = useState(null); // null = checking, false = show onboarding, true = main app
   const [reportModalData, setReportModalData] = useState(null);
   const [reportModalVisible, setReportModalVisible] = useState(false);
   const { t, language } = useLanguage();
 
+  const handleNavigate = (screen) => {
+    setCurrentScreen(screen);
+  };
+
   useEffect(() => {
-    checkOnboarding();
+    checkAuthAndOnboarding();
   }, []);
 
-  const checkOnboarding = async () => {
+  const checkAuthAndOnboarding = async () => {
     try {
+      const user = await LocalDB.getAuthUser();
+      if (!user) {
+        setAuthUser(false);
+        setIsOnboarded(false);
+        return;
+      }
+      setAuthUser(user);
       const completed = await LocalDB.getOnboardingCompleted();
       setIsOnboarded(completed);
     } catch (e) {
-      setIsOnboarded(true); // default to true if check fails to prevent softlock
+      setAuthUser(false);
+      setIsOnboarded(false);
     }
+  };
+
+  const handleAuthSuccess = async (user) => {
+    setAuthUser(user);
+    try {
+      const completed = await LocalDB.getOnboardingCompleted();
+      setIsOnboarded(completed || user.onboarding_completed || false);
+    } catch (e) {
+      setIsOnboarded(false);
+    }
+    setCurrentScreen('home');
+  };
+
+  const handleLogout = async () => {
+    await LocalDB.clearAuthUser();
+    setAuthUser(false);
+    setIsOnboarded(false);
+    setCurrentScreen('home');
   };
 
   const handleOnboardingComplete = () => {
@@ -49,7 +81,8 @@ const MainNavigator = () => {
     setReportModalVisible(true);
   };
 
-  if (isOnboarded === null) {
+  // 1. Initial State Loading
+  if (authUser === null || isOnboarded === null) {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color={THEME.colors.primary} />
@@ -57,7 +90,17 @@ const MainNavigator = () => {
     );
   }
 
-  // First-time vendor onboarding view
+  // 2. Vendor Authentication Screen
+  if (!authUser) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <StatusBar barStyle="light-content" backgroundColor={THEME.colors.primary} />
+        <AuthScreen onAuthSuccess={handleAuthSuccess} />
+      </SafeAreaView>
+    );
+  }
+
+  // 3. First-time vendor catalog onboarding view
   if (isOnboarded === false) {
     return (
       <SafeAreaView style={styles.container}>
@@ -70,37 +113,38 @@ const MainNavigator = () => {
   const renderScreen = () => {
     switch (currentScreen) {
       case 'home':
-        return <HomeScreen onNavigate={setCurrentScreen} />;
+        return <HomeScreen onNavigate={handleNavigate} onLogout={handleLogout} />;
       case 'dailySalesEntry':
         return (
           <DailySalesEntryScreen
-            onNavigate={setCurrentScreen}
+            onNavigate={handleNavigate}
             onReportGenerated={handleReportGenerated}
           />
         );
       case 'onboarding_edit':
         return (
           <OnboardingScreen
-            onComplete={() => setCurrentScreen('settings')}
+            onNavigate={handleNavigate}
+            onComplete={() => setCurrentScreen('home')}
             isEditMode={true}
           />
         );
       case 'voice':
-        return <VoiceEntryScreen onNavigate={setCurrentScreen} />;
+        return <VoiceEntryScreen onNavigate={handleNavigate} />;
       case 'purchases':
-        return <PurchasesScreen onNavigate={setCurrentScreen} />;
+        return <PurchasesScreen onNavigate={handleNavigate} />;
       case 'reports':
-        return <ReportsScreen onNavigate={setCurrentScreen} />;
+        return <ReportsScreen onNavigate={handleNavigate} />;
       case 'pricing':
-        return <SmartPricingScreen onNavigate={setCurrentScreen} />;
+        return <SmartPricingScreen onNavigate={handleNavigate} />;
       case 'whereToBuy':
-        return <WhereToBuyScreen onNavigate={setCurrentScreen} />;
+        return <WhereToBuyScreen onNavigate={handleNavigate} />;
       case 'settings':
-        return <SettingsScreen onNavigate={setCurrentScreen} />;
+        return <SettingsScreen onNavigate={handleNavigate} onLogout={handleLogout} />;
       case 'marketIntelligence':
-        return <MarketIntelligenceScreen onNavigate={setCurrentScreen} />;
+        return <MarketIntelligenceScreen onNavigate={handleNavigate} />;
       default:
-        return <HomeScreen onNavigate={setCurrentScreen} />;
+        return <HomeScreen onNavigate={handleNavigate} onLogout={handleLogout} />;
     }
   };
 

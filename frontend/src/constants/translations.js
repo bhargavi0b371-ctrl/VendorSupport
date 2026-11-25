@@ -22,10 +22,11 @@ export const TRANSLATIONS = {
       fruits: "Fruits",
       fruits_vegetables: "Fruits & Vegetables",
       flowers: "Flowers",
-      street_food: "Street Food / Snacks",
+      street_food: "Street Food",
       tea_coffee: "Tea / Coffee",
       groceries: "Groceries",
-      clothes_accessories: "Clothes / Accessories",
+      clothes: "Clothes",
+      clothes_accessories: "Clothes",
       other: "Other"
     },
     selectProductsTitle: "Choose Your Products",
@@ -135,7 +136,28 @@ export const TRANSLATIONS = {
     cancel: "Cancel",
     undo: "Undo",
     close: "Close",
-    loading: "Loading..."
+    loading: "Loading...",
+
+    // Authentication & Vendor Profile
+    authTitle: "Vendor Security & Login",
+    authSubtitle: "Secure access to your daily sales, profit and shop records",
+    shopNameLabel: "Shop's Name",
+    shopNamePlaceholder: "e.g. Murugan Vegetable Stall",
+    vendorNameLabel: "Vendor's Name",
+    vendorNamePlaceholder: "e.g. Murugan K",
+    phoneLabel: "Phone Number",
+    phonePlaceholder: "10-digit mobile number",
+    pinLabel: "Security PIN",
+    pinPlaceholder: "4-digit PIN (e.g. 1234)",
+    loginBtn: "LOGIN TO SHOP",
+    registerBtn: "REGISTER SHOP & START",
+    switchToRegister: "New shop? Register here",
+    switchToLogin: "Already registered? Login with PIN",
+    logoutBtn: "Logout",
+    profileTitle: "Vendor Profile",
+    editProfile: "Edit Profile",
+    manageCatalog: "Shop Products Catalog",
+    viewOnGraphs: "VIEW ON GRAPHS"
   },
 
   ta: {
@@ -164,6 +186,7 @@ export const TRANSLATIONS = {
       street_food: "தெருவோர உணவு / தின்பண்டங்கள்",
       tea_coffee: "டீ / காபி",
       groceries: "மளிகை பொருட்கள்",
+      clothes: "துணிமணிகள் / அணிகலன்கள்",
       clothes_accessories: "துணிமணிகள் / அணிகலன்கள்",
       other: "மற்றவை"
     },
@@ -274,6 +297,27 @@ export const TRANSLATIONS = {
     cancel: "ரத்து செய்",
     undo: "திரும்பப் பெறு",
     close: "மூடு",
-    loading: "ஏற்றுகிறது..."
+    loading: "ஏற்றுகிறது...",
+
+    // Authentication & Vendor Profile
+    authTitle: "வியாபாரி உள்நுழைவு & பாதுகாப்பு",
+    authSubtitle: "உங்கள் கடை விற்பனை, லாபம் மற்றும் தகவல்களை பாதுகாப்பாக நிர்வகியுங்கள்",
+    shopNameLabel: "கடையின் பெயர்",
+    shopNamePlaceholder: "எ.கா: முருகன் காய்கறி கடை",
+    vendorNameLabel: "வியாபாரியின் பெயர்",
+    vendorNamePlaceholder: "எ.கா: முருகன் கே",
+    phoneLabel: "தொலைபேசி எண்",
+    phonePlaceholder: "10 இலக்க மொபைல் எண்",
+    pinLabel: "பாதுகாப்பு பின்",
+    pinPlaceholder: "4 இலக்க பின் (எ.கா: 1234)",
+    loginBtn: "கடைக்குள் நுழைக",
+    registerBtn: "புதிய கடை பதிவு செய்து தொடங்கு",
+    switchToRegister: "புதிய கடையா? பதிவு செய்ய இங்கே தொடவும்",
+    switchToLogin: "ஏற்கனவே பதிவு செய்தவரா? பின் மூலம் உள்நுழைக",
+    logoutBtn: "வெளியேறு",
+    profileTitle: "வியாபாரி சுயவிவரம்",
+    editProfile: "சுயவிவரம் திருத்து",
+    manageCatalog: "கடை பொருட்கள் பட்டியல்",
+    viewOnGraphs: "வரைபடத்தில் பார்க்க"
   }
 };

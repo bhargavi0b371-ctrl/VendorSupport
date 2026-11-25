@@ -1,34 +1,75 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Switch, Alert } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Switch, Alert, TextInput, ActivityIndicator } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { THEME } from '../constants/theme';
 import { useLanguage } from '../context/LanguageContext';
 import { useSync } from '../context/SyncContext';
 import { useVoice } from '../hooks/useVoice';
 import { api } from '../api/client';
+import { LocalDB } from '../db/localDb';
 import { Header } from '../components/Header';
 import { BigButton } from '../components/BigButton';
 
-export const SettingsScreen = ({ onNavigate }) => {
+export const SettingsScreen = ({ onNavigate, onLogout }) => {
   const { t, language, setLanguage } = useLanguage();
   const { isOnline, pendingCount, syncNow, isSyncing, lastSyncTime } = useSync();
   const { speak } = useVoice();
   const [marginPct, setMarginPct] = useState(25.0);
   const [items, setItems] = useState([]);
+  const [profile, setProfile] = useState(null);
+  const [isEditingProfile, setIsEditingProfile] = useState(false);
+  const [editShopName, setEditShopName] = useState('');
+  const [editVendorName, setEditVendorName] = useState('');
+  const [editPhone, setEditPhone] = useState('');
+  const [editPin, setEditPin] = useState('');
+  const [savingProfile, setSavingProfile] = useState(false);
 
   useEffect(() => {
-    const loadSettings = async () => {
-      try {
-        const u = await api.getUserSettings();
-        if (u && u.default_margin_pct) setMarginPct(u.default_margin_pct);
-        const itms = await api.getItems();
-        setItems(itms);
-      } catch (e) {
-        console.warn("Failed to load settings", e);
-      }
-    };
     loadSettings();
   }, []);
+
+  const loadSettings = async () => {
+    try {
+      const u = await LocalDB.getAuthUser();
+      if (u) {
+        setProfile(u);
+        setEditShopName(u.shop_name || '');
+        setEditVendorName(u.name || '');
+        setEditPhone(u.phone || '');
+        setEditPin(u.pin || '1234');
+      }
+
+      const settings = await api.getUserSettings();
+      if (settings && settings.default_margin_pct) setMarginPct(settings.default_margin_pct);
+      const itms = await api.getVendorProducts();
+      setItems(itms);
+    } catch (e) {
+      console.warn("Failed to load settings", e);
+    }
+  };
+
+  const handleSaveProfile = async () => {
+    if (!editShopName.trim() || !editVendorName.trim()) {
+      Alert.alert(language === 'ta' ? 'பிழை' : 'Error', language === 'ta' ? 'கடை மற்றும் வியாபாரி பெயரை உள்ளிடவும்' : 'Shop and vendor names required');
+      return;
+    }
+    setSavingProfile(true);
+    try {
+      const updated = await api.updateVendorProfile({
+        name: editVendorName.trim(),
+        shop_name: editShopName.trim(),
+        phone: editPhone.trim(),
+        pin: editPin.trim()
+      });
+      setProfile(updated);
+      setIsEditingProfile(false);
+      Alert.alert(language === 'ta' ? 'வெற்றி' : 'Saved', language === 'ta' ? 'சுயவிவரம் சேமிக்கப்பட்டது' : 'Profile updated successfully');
+    } catch (e) {
+      console.warn("Save profile error", e);
+    } finally {
+      setSavingProfile(false);
+    }
+  };
 
   const handleLanguageChange = async (newLang) => {
     await setLanguage(newLang);
@@ -44,8 +85,16 @@ export const SettingsScreen = ({ onNavigate }) => {
     speak(msg);
   };
 
-  const toggleItemActive = (itemId) => {
-    setItems(items.map(it => it.id === itemId ? { ...it, is_active: !it.is_active } : it));
+  const toggleItemActive = async (itemId) => {
+    const it = items.find(x => x.id === itemId);
+    if (!it) return;
+    const nextState = it.is_active === false ? true : false;
+    setItems(items.map(x => x.id === itemId ? { ...x, is_active: nextState } : x));
+    try {
+      await api.toggleVendorProduct(itemId, nextState);
+    } catch (e) {
+      console.warn("Toggle vendor product error", e);
+    }
   };
 
   const handleManualSync = async () => {
@@ -64,6 +113,124 @@ export const SettingsScreen = ({ onNavigate }) => {
       <Header title={t('settingsTitle')} showBack onBack={() => onNavigate('home')} />
 
       <ScrollView contentContainerStyle={styles.scrollContent}>
+        {/* VENDOR PROFILE CARD */}
+        <View style={styles.sectionCard}>
+          <View style={styles.sectionHeaderRow}>
+            <MaterialCommunityIcons name="store" size={24} color={THEME.colors.primary} />
+            <Text style={styles.sectionTitle}>{t('profileTitle')}</Text>
+          </View>
+
+          {profile && !isEditingProfile && (
+            <View style={styles.profileDisplayBox}>
+              <View style={styles.profileRow}>
+                <MaterialCommunityIcons name="storefront" size={20} color={THEME.colors.primary} />
+                <View style={{ flex: 1, marginLeft: 8 }}>
+                  <Text style={styles.profileLabel}>{t('shopNameLabel')}</Text>
+                  <Text style={styles.profileValue}>{profile.shop_name || 'My Shop'}</Text>
+                </View>
+              </View>
+
+              <View style={styles.profileRow}>
+                <MaterialCommunityIcons name="account" size={20} color={THEME.colors.primary} />
+                <View style={{ flex: 1, marginLeft: 8 }}>
+                  <Text style={styles.profileLabel}>{t('vendorNameLabel')}</Text>
+                  <Text style={styles.profileValue}>{profile.name || 'Vendor'}</Text>
+                </View>
+              </View>
+
+              <View style={styles.profileRow}>
+                <MaterialCommunityIcons name="phone" size={20} color={THEME.colors.primary} />
+                <View style={{ flex: 1, marginLeft: 8 }}>
+                  <Text style={styles.profileLabel}>{t('phoneLabel')}</Text>
+                  <Text style={styles.profileValue}>{profile.phone || '-'}</Text>
+                </View>
+              </View>
+
+              <View style={styles.profileBtnRow}>
+                <TouchableOpacity
+                  onPress={() => setIsEditingProfile(true)}
+                  style={styles.editProfileBtn}
+                  activeOpacity={0.8}
+                >
+                  <MaterialCommunityIcons name="pencil" size={18} color="#FFFFFF" />
+                  <Text style={styles.editProfileBtnText}>{t('editProfile')}</Text>
+                </TouchableOpacity>
+
+                {onLogout && (
+                  <TouchableOpacity
+                    onPress={onLogout}
+                    style={styles.logoutBtn}
+                    activeOpacity={0.8}
+                  >
+                    <MaterialCommunityIcons name="logout" size={18} color="#DC2626" />
+                    <Text style={styles.logoutBtnText}>{t('logoutBtn')}</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+            </View>
+          )}
+
+          {isEditingProfile && (
+            <View style={styles.editProfileForm}>
+              <Text style={styles.fieldLabel}>{t('shopNameLabel')} *</Text>
+              <TextInput
+                style={styles.textInput}
+                value={editShopName}
+                onChangeText={setEditShopName}
+                placeholder={t('shopNamePlaceholder')}
+              />
+
+              <Text style={styles.fieldLabel}>{t('vendorNameLabel')} *</Text>
+              <TextInput
+                style={styles.textInput}
+                value={editVendorName}
+                onChangeText={setEditVendorName}
+                placeholder={t('vendorNamePlaceholder')}
+              />
+
+              <Text style={styles.fieldLabel}>{t('phoneLabel')} *</Text>
+              <TextInput
+                style={styles.textInput}
+                value={editPhone}
+                onChangeText={setEditPhone}
+                keyboardType="phone-pad"
+                placeholder={t('phonePlaceholder')}
+              />
+
+              <Text style={styles.fieldLabel}>{t('pinLabel')} *</Text>
+              <TextInput
+                style={styles.textInput}
+                value={editPin}
+                onChangeText={setEditPin}
+                keyboardType="numeric"
+                secureTextEntry={true}
+                placeholder="4-digit PIN"
+              />
+
+              <View style={styles.formBtnRow}>
+                <TouchableOpacity
+                  onPress={() => setIsEditingProfile(false)}
+                  style={styles.cancelBtn}
+                >
+                  <Text style={styles.cancelBtnText}>{t('cancel')}</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  onPress={handleSaveProfile}
+                  disabled={savingProfile}
+                  style={styles.saveProfileBtn}
+                >
+                  {savingProfile ? (
+                    <ActivityIndicator size="small" color="#FFFFFF" />
+                  ) : (
+                    <Text style={styles.saveProfileBtnText}>{t('save')}</Text>
+                  )}
+                </TouchableOpacity>
+              </View>
+            </View>
+          )}
+        </View>
+
         {/* 1. LANGUAGE SETTINGS */}
         <View style={styles.sectionCard}>
           <View style={styles.sectionHeaderRow}>
@@ -194,6 +361,16 @@ export const SettingsScreen = ({ onNavigate }) => {
             <MaterialCommunityIcons name="playlist-edit" size={22} color="#FFFFFF" />
             <Text style={styles.manageProductsBtnText}>{t('editMyProducts')}</Text>
           </TouchableOpacity>
+
+          {items.length === 0 && (
+            <View style={{ paddingVertical: 16, alignItems: 'center' }}>
+              <Text style={{ color: '#6B7280', fontSize: 13, textAlign: 'center' }}>
+                {language === 'ta'
+                  ? 'பொருட்கள் எதுவும் தேர்வு செய்யப்படவில்லை. மேலே உள்ள பொத்தானை அழுத்தி சேர்க்கவும்.'
+                  : 'No products chosen yet. Tap the button above to select products.'}
+              </Text>
+            </View>
+          )}
 
           {items.map((it) => (
             <View key={it.id} style={styles.itemRow}>
@@ -386,5 +563,111 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#6B7280',
     marginTop: 1
+  },
+  profileDisplayBox: {
+    marginTop: 6
+  },
+  profileRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F3F4F6'
+  },
+  profileLabel: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#6B7280'
+  },
+  profileValue: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: '#111827',
+    marginTop: 2
+  },
+  profileBtnRow: {
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 14
+  },
+  editProfileBtn: {
+    flex: 1,
+    backgroundColor: THEME.colors.primary,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 10,
+    borderRadius: 12,
+    gap: 6
+  },
+  editProfileBtnText: {
+    color: '#FFFFFF',
+    fontWeight: '800',
+    fontSize: 14
+  },
+  logoutBtn: {
+    backgroundColor: '#FEE2E2',
+    borderWidth: 1,
+    borderColor: '#FCA5A5',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 12,
+    gap: 6
+  },
+  logoutBtnText: {
+    color: '#DC2626',
+    fontWeight: '800',
+    fontSize: 14
+  },
+  editProfileForm: {
+    marginTop: 6
+  },
+  fieldLabel: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#374151',
+    marginTop: 8,
+    marginBottom: 4
+  },
+  textInput: {
+    backgroundColor: '#F9FAFB',
+    borderWidth: 1.5,
+    borderColor: '#D1D5DB',
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    fontSize: 15,
+    color: '#111827'
+  },
+  formBtnRow: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    gap: 10,
+    marginTop: 14
+  },
+  cancelBtn: {
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 10,
+    backgroundColor: '#F3F4F6'
+  },
+  cancelBtnText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#6B7280'
+  },
+  saveProfileBtn: {
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 10,
+    backgroundColor: THEME.colors.primary
+  },
+  saveProfileBtnText: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#FFFFFF'
   }
 });

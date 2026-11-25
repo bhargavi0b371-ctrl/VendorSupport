@@ -15,6 +15,7 @@ import { THEME } from '../constants/theme';
 import { useLanguage } from '../context/LanguageContext';
 import { useVoice } from '../hooks/useVoice';
 import { api } from '../api/client';
+import { LocalDB } from '../db/localDb';
 import { Header } from '../components/Header';
 
 export const DailySalesEntryScreen = ({ onNavigate, onReportGenerated }) => {
@@ -23,20 +24,21 @@ export const DailySalesEntryScreen = ({ onNavigate, onReportGenerated }) => {
 
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [currentUser, setCurrentUser] = useState(null);
   const [vendorProducts, setVendorProducts] = useState([]);
 
   // Product-wise entry state map: { [itemId]: { quantity_sold, selling_price, purchase_cost, unsold_quantity, damaged_quantity, included } }
   const [itemEntries, setItemEntries] = useState({});
 
-  // Expenses
-  const [transportCost, setTransportCost] = useState('50');
-  const [rentCost, setRentCost] = useState('100');
-  const [packagingCost, setPackagingCost] = useState('30');
-  const [otherExpenses, setOtherExpenses] = useState('20');
+  // Expenses - default to 0
+  const [transportCost, setTransportCost] = useState('0');
+  const [rentCost, setRentCost] = useState('0');
+  const [packagingCost, setPackagingCost] = useState('0');
+  const [otherExpenses, setOtherExpenses] = useState('0');
 
-  // Payments
-  const [cashCollection, setCashCollection] = useState('');
-  const [upiCollection, setUpiCollection] = useState('');
+  // Payments - default to 0
+  const [cashCollection, setCashCollection] = useState('0');
+  const [upiCollection, setUpiCollection] = useState('0');
   const [otherDigital, setOtherDigital] = useState('0');
   const [pendingCredit, setPendingCredit] = useState('0');
 
@@ -50,28 +52,28 @@ export const DailySalesEntryScreen = ({ onNavigate, onReportGenerated }) => {
   const loadProducts = async () => {
     setLoading(true);
     try {
-      let products = await api.getVendorProducts();
-      if (!products || products.length === 0) {
-        // Fallback to items catalog
-        products = await api.getItems();
-      }
-      const activeProducts = products.filter(p => p.is_active !== false);
+      const u = await LocalDB.getAuthUser();
+      if (u) setCurrentUser(u);
+
+      // Load ONLY the vendor's chosen products
+      const products = await api.getVendorProducts();
+      const activeProducts = (products || []).filter(p => p.is_active !== false);
       setVendorProducts(activeProducts);
 
-      // Initialize entries
+      // Initialize entries with 0 for all fields
       const initialMap = {};
-      activeProducts.forEach((p, idx) => {
+      activeProducts.forEach((p) => {
         initialMap[p.id] = {
-          item_id: p.id,
+          item_id: p.item_id || p.id,
           name_en: p.name_en,
           name_ta: p.name_ta,
           category: p.category,
           unit: p.default_unit || 'kg',
-          quantity_sold: idx === 0 ? '15' : '10',
-          selling_price: '40',
-          purchase_cost: '28',
-          unsold_quantity: '2',
-          damaged_quantity: '1',
+          quantity_sold: '0',
+          selling_price: '0',
+          purchase_cost: '0',
+          unsold_quantity: '0',
+          damaged_quantity: '0',
           included: true
         };
       });
@@ -84,11 +86,16 @@ export const DailySalesEntryScreen = ({ onNavigate, onReportGenerated }) => {
   };
 
   const updateItemField = (itemId, field, value) => {
+    // If user types over '0', replace '0' with the new digit instead of '0X'
+    let cleanVal = value;
+    if (cleanVal.length > 1 && cleanVal.startsWith('0') && cleanVal[1] !== '.') {
+      cleanVal = cleanVal.replace(/^0+/, '');
+    }
     setItemEntries(prev => ({
       ...prev,
       [itemId]: {
         ...prev[itemId],
-        [field]: value
+        [field]: cleanVal
       }
     }));
   };
@@ -142,16 +149,6 @@ export const DailySalesEntryScreen = ({ onNavigate, onReportGenerated }) => {
     const cost = parseFloat(it.purchase_cost) || 0;
     return acc + (damaged * cost);
   }, 0);
-
-  // Auto populate cash/upi if empty when revenue is computed
-  useEffect(() => {
-    if (totalSalesRevenue > 0 && !cashCollection && !upiCollection) {
-      const estimatedCash = Math.round(totalSalesRevenue * 0.6);
-      const estimatedUpi = Math.round(totalSalesRevenue - estimatedCash);
-      setCashCollection(String(estimatedCash));
-      setUpiCollection(String(estimatedUpi));
-    }
-  }, [totalSalesRevenue]);
 
   // Voice fill handler
   const handleVoiceFill = async () => {
@@ -210,26 +207,59 @@ export const DailySalesEntryScreen = ({ onNavigate, onReportGenerated }) => {
 
     setSubmitting(true);
     try {
-      const itemsPayload = activeEntriesList.map(it => ({
-        item_id: it.item_id,
-        quantity_sold: parseFloat(it.quantity_sold) || 0,
-        selling_price: parseFloat(it.selling_price) || 0,
-        purchase_cost: parseFloat(it.purchase_cost) || 0,
-        unsold_quantity: parseFloat(it.unsold_quantity) || 0,
-        damaged_quantity: parseFloat(it.damaged_quantity) || 0,
-        notes: null
-      }));
+      const itemsPayload = activeEntriesList.map(it => {
+        const qtySold = parseFloat(it.quantity_sold) || 0;
+        const sp = parseFloat(it.selling_price) || 0;
+        const cp = parseFloat(it.purchase_cost) || 0;
+        const unsold = parseFloat(it.unsold_quantity) || 0;
+        const damaged = parseFloat(it.damaged_quantity) || 0;
+        return {
+          item_id: it.item_id,
+          quantity_sold: qtySold,
+          selling_price: sp,
+          selling_price_per_unit: sp,
+          purchase_cost: cp,
+          purchase_cost_per_unit: cp,
+          unsold_quantity: unsold,
+          damaged_quantity: damaged,
+          notes: null
+        };
+      });
+
+      const tCost = parseFloat(transportCost) || 0;
+      const rCost = parseFloat(rentCost) || 0;
+      const pCost = parseFloat(packagingCost) || 0;
+      const oCost = parseFloat(otherExpenses) || 0;
+      const cColl = parseFloat(cashCollection) || 0;
+      const uColl = parseFloat(upiCollection) || 0;
+      const dColl = parseFloat(otherDigital) || 0;
+      const pCred = parseFloat(pendingCredit) || 0;
+      const todayDate = new Date().toISOString().split('T')[0];
 
       const payload = {
-        entry_date: new Date().toISOString().split('T')[0],
-        transport_cost: parseFloat(transportCost) || 0,
-        rent_cost: parseFloat(rentCost) || 0,
-        packaging_cost: parseFloat(packagingCost) || 0,
-        other_expenses: parseFloat(otherExpenses) || 0,
-        cash_collection: parseFloat(cashCollection) || 0,
-        upi_collection: parseFloat(upiCollection) || 0,
-        other_digital_collection: parseFloat(otherDigital) || 0,
-        pending_credit: parseFloat(pendingCredit) || 0,
+        user_id: currentUser?.id || 1,
+        date: todayDate,
+        entry_date: todayDate,
+        transport_cost: tCost,
+        rent_cost: rCost,
+        packaging_cost: pCost,
+        other_expenses: oCost,
+        cash_collection: cColl,
+        upi_collection: uColl,
+        other_digital_collection: dColl,
+        pending_credit: pCred,
+        expenses: {
+          transport: tCost,
+          rent: rCost,
+          packaging: pCost,
+          other: oCost
+        },
+        payments: {
+          cash: cColl,
+          upi: uColl,
+          digital_other: dColl,
+          credit_pending: pCred
+        },
         notes: null,
         items: itemsPayload
       };
@@ -282,16 +312,20 @@ export const DailySalesEntryScreen = ({ onNavigate, onReportGenerated }) => {
             style={[styles.voiceBtn, isListening && styles.voiceBtnActive]}
           >
             <MaterialCommunityIcons
-              name={isListening ? "microphone" : "microphone-outline"}
-              size={32}
+              name={isListening ? "stop-circle" : "microphone"}
+              size={34}
               color="#FFFFFF"
             />
             <View style={{ flex: 1 }}>
               <Text style={styles.voiceBtnTitle}>
-                {isListening ? (language === 'ta' ? 'கேட்கிறது...' : 'Listening...') : t('voiceFillBtn')}
+                {isListening
+                  ? (language === 'ta' ? 'கேட்கிறது... முடிக்க மீண்டும் தொடவும்' : 'Listening... Tap again to finish')
+                  : t('voiceFillBtn')}
               </Text>
               <Text style={styles.voiceBtnSub} numberOfLines={2}>
-                {voiceHint || t('voiceFillHint')}
+                {isListening
+                  ? (language === 'ta' ? 'பேசி முடித்தவுடன் பட்டனை மீண்டும் தொட்டு பதிவு செய்யவும்' : 'Speak numbers & items, then tap button again to auto-fill')
+                  : (voiceHint || t('voiceFillHint'))}
               </Text>
             </View>
           </TouchableOpacity>
@@ -299,9 +333,45 @@ export const DailySalesEntryScreen = ({ onNavigate, onReportGenerated }) => {
 
         {/* SECTION 1: PRODUCT-WISE SALES & STOCK */}
         <View style={styles.sectionHeaderRow}>
-          <MaterialCommunityIcons name="basket" size={24} color={THEME.colors.primary} />
-          <Text style={styles.sectionHeading}>{t('productWiseDetails')}</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1 }}>
+            <MaterialCommunityIcons name="basket" size={24} color={THEME.colors.primary} />
+            <Text style={styles.sectionHeading}>{t('productWiseDetails')}</Text>
+          </View>
+          <TouchableOpacity
+            onPress={() => onNavigate && onNavigate('onboarding_edit')}
+            style={styles.manageCatalogBtn}
+            activeOpacity={0.75}
+          >
+            <MaterialCommunityIcons name="playlist-edit" size={16} color={THEME.colors.primary} />
+            <Text style={styles.manageCatalogBtnText}>
+              {language === 'ta' ? '+ பொருட்கள் சேர்க்க/நீக்க' : '+ Manage Products'}
+            </Text>
+          </TouchableOpacity>
         </View>
+
+        {vendorProducts.length === 0 && (
+          <View style={styles.emptyProductsCard}>
+            <MaterialCommunityIcons name="basket-outline" size={48} color="#9CA3AF" />
+            <Text style={styles.emptyProductsTitle}>
+              {language === 'ta' ? 'பொருட்கள் எதுவும் தேர்வு செய்யப்படவில்லை' : 'No Products Selected for Your Shop'}
+            </Text>
+            <Text style={styles.emptyProductsSub}>
+              {language === 'ta'
+                ? 'உங்கள் கடையில் விற்கப்படும் குறிப்பிட்ட பழங்கள் அல்லது காய்கறிகளை தேர்வு செய்து தொடங்கவும்.'
+                : 'Select specific fruits or vegetables sold in your shop under Manage Products.'}
+            </Text>
+            <TouchableOpacity
+              style={styles.chooseProductsBtn}
+              onPress={() => onNavigate && onNavigate('onboarding_edit')}
+              activeOpacity={0.8}
+            >
+              <MaterialCommunityIcons name="plus-circle" size={20} color="#FFFFFF" />
+              <Text style={styles.chooseProductsBtnText}>
+                {language === 'ta' ? 'பொருட்களை தேர்வு செய்க' : 'Choose Products to Sell'}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        )}
 
         {vendorProducts.map((prod) => {
           const entry = itemEntries[prod.id] || {
@@ -310,9 +380,9 @@ export const DailySalesEntryScreen = ({ onNavigate, onReportGenerated }) => {
             purchase_cost: '0',
             unsold_quantity: '0',
             damaged_quantity: '0',
-            included: false
+            included: true
           };
-          const isIncluded = entry.included;
+          const isIncluded = entry.included !== false;
           const prodName = language === 'ta' ? (prod.name_ta || prod.name_en) : (prod.name_en || prod.name_ta);
           const unit = prod.default_unit || 'kg';
 
@@ -336,24 +406,22 @@ export const DailySalesEntryScreen = ({ onNavigate, onReportGenerated }) => {
                 activeOpacity={0.7}
               >
                 <MaterialCommunityIcons
-                  name={isIncluded ? "checkbox-marked-circle" : "checkbox-blank-circle-outline"}
-                  size={26}
-                  color={isIncluded ? THEME.colors.primary : "#9CA3AF"}
+                  name={isIncluded ? "check-circle" : "checkbox-blank-circle-outline"}
+                  size={28}
+                  color={isIncluded ? "#16a34a" : "#9CA3AF"}
                 />
-                <View style={{ flex: 1, marginLeft: 10 }}>
+                <View style={{ flex: 1, marginLeft: 12 }}>
                   <Text style={styles.productNameText}>{prodName}</Text>
                   <Text style={styles.productUnitText}>{t('units')?.[unit] || unit}</Text>
                 </View>
-                {isIncluded && (
-                  <View style={styles.itemProfitBadge}>
-                    <Text style={styles.itemProfitText}>
-                      +{t('rs')}{Math.round(itemProfit)}
-                    </Text>
-                  </View>
-                )}
+                <View style={styles.itemProfitBadge}>
+                  <Text style={styles.itemProfitText}>
+                    +{t('rs')}{Math.round(itemProfit)}
+                  </Text>
+                </View>
               </TouchableOpacity>
 
-              {/* Input Fields (Rendered when checked) */}
+              {/* Input Fields */}
               {isIncluded && (
                 <View style={styles.inputsGrid}>
                   {/* Row 1: Sold Qty & Selling Price */}
@@ -380,7 +448,7 @@ export const DailySalesEntryScreen = ({ onNavigate, onReportGenerated }) => {
                     </View>
                   </View>
 
-                  {/* Row 2: Purchase Cost per unit */}
+                  {/* Row 2: Purchase Cost per unit & Unsold Qty */}
                   <View style={styles.inputPairRow}>
                     <View style={styles.inputCol}>
                       <Text style={styles.fieldLabel}>{t('purchaseCost')} (₹/{unit})</Text>
@@ -407,11 +475,11 @@ export const DailySalesEntryScreen = ({ onNavigate, onReportGenerated }) => {
                   {/* Row 3: Damaged/Spoiled Qty */}
                   <View style={styles.inputPairRow}>
                     <View style={[styles.inputCol, { width: '100%' }]}>
-                      <Text style={[styles.fieldLabel, { color: THEME.colors.loss }]}>
+                      <Text style={styles.damagedLabel}>
                         {t('damagedQty')} ({unit}) - {t('wastageLoss')}: ₹{Math.round(itemWastage)}
                       </Text>
                       <TextInput
-                        style={[styles.numberInput, { borderColor: '#FFCDD2' }]}
+                        style={styles.damagedNumberInput}
                         keyboardType="numeric"
                         value={entry.damaged_quantity}
                         onChangeText={(v) => updateItemField(prod.id, 'damaged_quantity', v)}
@@ -678,76 +746,113 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
     flexShrink: 1
   },
+  manageCatalogBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: THEME.colors.primaryBg,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: THEME.colors.primary
+  },
+  manageCatalogBtnText: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: THEME.colors.primary
+  },
   productCard: {
     backgroundColor: '#FFFFFF',
-    borderRadius: THEME.borderRadius.md,
-    borderWidth: 1.5,
-    borderColor: '#E5E7EB',
-    marginBottom: 14,
+    borderRadius: 16,
+    borderWidth: 2,
+    borderColor: '#16a34a',
+    marginBottom: 16,
     overflow: 'hidden',
     elevation: 2
   },
   productCardActive: {
-    borderColor: THEME.colors.primary
+    borderColor: '#16a34a',
+    borderWidth: 2
   },
   productCardHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 14,
-    backgroundColor: '#FAFAFA'
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    paddingBottom: 12,
+    backgroundColor: '#FFFFFF'
   },
   productNameText: {
-    fontSize: 17,
+    fontSize: 18,
     fontWeight: '800',
-    color: THEME.colors.textDark
+    color: '#111827'
   },
   productUnitText: {
-    fontSize: 12,
+    fontSize: 13,
     color: '#6B7280',
-    fontWeight: '600'
+    fontWeight: '500',
+    marginTop: 2
   },
   itemProfitBadge: {
-    backgroundColor: THEME.colors.primaryBg,
-    paddingHorizontal: 10,
+    backgroundColor: '#E8F5E9',
+    paddingHorizontal: 12,
     paddingVertical: 4,
-    borderRadius: 12
+    borderRadius: 16
   },
   itemProfitText: {
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: '800',
-    color: THEME.colors.primary
+    color: '#16a34a'
   },
   inputsGrid: {
-    padding: 14,
-    borderTopWidth: 1,
-    borderTopColor: '#F3F4F6'
+    paddingHorizontal: 16,
+    paddingBottom: 16
   },
   inputPairRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     gap: 12,
-    marginBottom: 10
+    marginBottom: 12
   },
   inputCol: {
     flex: 1
   },
   fieldLabel: {
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: '700',
-    color: THEME.colors.textMuted,
-    marginBottom: 4,
+    color: '#374151',
+    marginBottom: 6,
     flexWrap: 'wrap'
   },
   numberInput: {
     backgroundColor: '#F9FAFB',
     borderWidth: 1.5,
     borderColor: '#D1D5DB',
-    borderRadius: THEME.borderRadius.sm,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
     fontSize: 16,
     fontWeight: '700',
-    color: THEME.colors.textDark
+    color: '#111827'
+  },
+  damagedLabel: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#B91C1C',
+    marginBottom: 6,
+    flexWrap: 'wrap'
+  },
+  damagedNumberInput: {
+    backgroundColor: '#FFF5F5',
+    borderWidth: 1.5,
+    borderColor: '#FECDD3',
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#111827'
   },
   expensesCard: {
     backgroundColor: '#FFFFFF',
@@ -890,5 +995,44 @@ const styles = StyleSheet.create({
     fontWeight: '900',
     color: '#FFFFFF',
     letterSpacing: 0.5
+  },
+  emptyProductsCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: THEME.borderRadius.md,
+    padding: 24,
+    alignItems: 'center',
+    marginVertical: 14,
+    borderWidth: 1.5,
+    borderColor: '#E5E7EB',
+    borderStyle: 'dashed'
+  },
+  emptyProductsTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: THEME.colors.textDark,
+    marginTop: 12,
+    textAlign: 'center'
+  },
+  emptyProductsSub: {
+    fontSize: 13,
+    color: '#6B7280',
+    textAlign: 'center',
+    marginTop: 6,
+    marginBottom: 16,
+    lineHeight: 18
+  },
+  chooseProductsBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: THEME.colors.primary,
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: THEME.borderRadius.sm,
+    gap: 8
+  },
+  chooseProductsBtnText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '800'
   }
 });

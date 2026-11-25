@@ -38,6 +38,92 @@ class ApiClient {
     }
   }
 
+  // --- Vendor Authentication & Profile ---
+  async registerVendor(data) {
+    try {
+      const res = await this._request('/api/auth/register', {
+        method: 'POST',
+        body: JSON.stringify(data)
+      });
+      if (res && res.user) {
+        await LocalDB.setAuthUser(res.user);
+      }
+      return res;
+    } catch (e) {
+      // Local fallback for offline account creation
+      const localUser = {
+        id: Date.now(),
+        name: data.name,
+        shop_name: data.shop_name,
+        phone: data.phone,
+        language: data.language || 'ta',
+        onboarding_completed: false
+      };
+      await LocalDB.setAuthUser(localUser);
+      return {
+        status: 'success_offline',
+        user: localUser,
+        message_en: `Welcome ${data.name}! Created offline.`,
+        message_ta: `வணக்கம் ${data.name}! ஆஃப்லைனில் பதிவு செய்யப்பட்டது.`
+      };
+    }
+  }
+
+  async loginVendor(data) {
+    try {
+      const res = await this._request('/api/auth/login', {
+        method: 'POST',
+        body: JSON.stringify(data)
+      });
+      if (res && res.user) {
+        await LocalDB.setAuthUser(res.user);
+      }
+      return res;
+    } catch (e) {
+      // Offline fallback: check local user
+      const localUser = await LocalDB.getAuthUser();
+      if (localUser && localUser.phone === data.phone) {
+        return {
+          status: 'success_offline',
+          user: localUser,
+          message_en: `Welcome back to ${localUser.shop_name}!`,
+          message_ta: `மீண்டும் வருக ${localUser.shop_name}!`
+        };
+      }
+      throw e;
+    }
+  }
+
+  async getVendorProfile(userId = 1) {
+    try {
+      const user = await this._request(`/api/auth/me?user_id=${userId}`);
+      await LocalDB.setAuthUser(user);
+      return user;
+    } catch (e) {
+      return await LocalDB.getAuthUser();
+    }
+  }
+
+  async updateVendorProfile(profileData, userId = 1) {
+    try {
+      const user = await this._request(`/api/auth/profile?user_id=${userId}`, {
+        method: 'PUT',
+        body: JSON.stringify(profileData)
+      });
+      await LocalDB.setAuthUser(user);
+      return user;
+    } catch (e) {
+      const localUser = (await LocalDB.getAuthUser()) || {};
+      const updated = { ...localUser, ...profileData };
+      await LocalDB.setAuthUser(updated);
+      return updated;
+    }
+  }
+
+  async logoutVendor() {
+    await LocalDB.clearAuthUser();
+  }
+
   // --- Items ---
   async getItems() {
     try {
@@ -141,19 +227,7 @@ class ApiClient {
     try {
       return await this._request(`/api/reports?period=${period}`);
     } catch (e) {
-      // Fallback local report computation
-      const summary = await LocalDB.getTodaySummary();
-      return {
-        period,
-        total_sales: summary.total_sales,
-        total_purchases: summary.total_purchases,
-        net_profit: summary.net_profit,
-        profit_margin_pct: summary.total_sales > 0 ? Math.round((summary.net_profit / summary.total_sales) * 100) : 0,
-        chart_data: [
-          { label: "Today", sales: summary.total_sales, purchases: summary.total_purchases, profit: summary.net_profit }
-        ],
-        top_selling_items: []
-      };
+      return await LocalDB.getPeriodReport(period);
     }
   }
 
@@ -313,22 +387,29 @@ class ApiClient {
       const items = await LocalDB.getItems();
       return {
         categories: [
-          { id: "fruits", name_en: "Fruits", name_ta: "பழங்கள்", icon: "fruit-cherries" },
           { id: "vegetables", name_en: "Vegetables", name_ta: "காய்கறிகள்", icon: "carrot" },
-          { id: "fruits_vegetables", name_en: "Fruits & Vegetables", name_ta: "பழங்கள் மற்றும் காய்கறிகள்", icon: "food-apple" },
+          { id: "fruits", name_en: "Fruits", name_ta: "பழங்கள்", icon: "food-apple" },
+          { id: "fruits_vegetables", name_en: "Fruits & Vegetables", name_ta: "பழங்கள் மற்றும் காய்கறிகள்", icon: "fruit-grapes" },
           { id: "flowers", name_en: "Flowers", name_ta: "பூக்கள்", icon: "flower" },
-          { id: "street_food", name_en: "Street Food / Snacks", name_ta: "தெரு உணவு / சிற்றுண்டி", icon: "food" },
+          { id: "street_food", name_en: "Street Food", name_ta: "தெரு உணவு / சிற்றுண்டி", icon: "food" },
           { id: "tea_coffee", name_en: "Tea / Coffee", name_ta: "தேநீர் / காபி", icon: "coffee" },
           { id: "groceries", name_en: "Groceries", name_ta: "மளிகை பொருட்கள்", icon: "store" },
-          { id: "clothes_accessories", name_en: "Clothes / Accessories", name_ta: "துணிகள் / ஆபரணங்கள்", icon: "tshirt-crew" },
+          { id: "clothes", name_en: "Clothes", name_ta: "துணிகள் / ஆபரணங்கள்", icon: "tshirt-crew" },
           { id: "other", name_en: "Other", name_ta: "மற்றவை", icon: "dots-horizontal-circle" }
         ],
-        predefined_products: items
+        predefined_products: items,
+        all_predefined_items: items
       };
     }
   }
 
   async submitOnboarding(data) {
+    const u = await LocalDB.getAuthUser();
+    const payload = {
+      user_id: data.user_id || u?.id || 1,
+      ...data
+    };
+
     // 1. Save locally first
     await LocalDB.setOnboardingCompleted(true);
     await LocalDB.setSelectedCategories(data.selected_categories || []);
@@ -336,25 +417,46 @@ class ApiClient {
     try {
       const res = await this._request('/api/onboarding', {
         method: 'POST',
-        body: JSON.stringify(data)
+        body: JSON.stringify(payload)
       });
       // Refresh vendor products from backend
-      const vProducts = await this.getVendorProducts();
+      const vProducts = await this.getVendorProducts(payload.user_id);
       await LocalDB.saveVendorProducts(vProducts);
       return res;
     } catch (e) {
+      const allItems = await LocalDB.getItems();
+      const selected = allItems.filter(it => (data.product_ids || []).includes(it.id));
+      if (data.custom_products && data.custom_products.length > 0) {
+        data.custom_products.forEach(cp => {
+          selected.push({
+            id: Date.now() + Math.floor(Math.random() * 1000),
+            name_en: cp.name_en,
+            name_ta: cp.name_ta || cp.name_en,
+            category: cp.category,
+            default_unit: cp.default_unit || 'kg',
+            is_active: true,
+            is_custom: true
+          });
+        });
+      }
+      await LocalDB.saveVendorProducts(selected);
       return {
         status: "saved_offline",
-        vendor_products_count: (data.product_ids || []).length + (data.custom_products || []).length,
+        vendor_products_count: selected.length,
         message_en: "Onboarding saved offline",
         message_ta: "ஆஃப்லைனில் பதிவு செய்யப்பட்டது"
       };
     }
   }
 
-  async getVendorProducts() {
+  async getVendorProducts(userId = null) {
     try {
-      const products = await this._request('/api/vendor/products');
+      let uid = userId;
+      if (!uid) {
+        const u = await LocalDB.getAuthUser();
+        uid = u?.id || 1;
+      }
+      const products = await this._request(`/api/vendor/products?user_id=${uid}`);
       await LocalDB.saveVendorProducts(products);
       return products;
     } catch (e) {

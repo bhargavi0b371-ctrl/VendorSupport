@@ -6,13 +6,15 @@ import { useLanguage } from '../context/LanguageContext';
 import { useSync } from '../context/SyncContext';
 import { useVoice } from '../hooks/useVoice';
 import { api } from '../api/client';
+import { LocalDB } from '../db/localDb';
 import { Header } from '../components/Header';
 import { BigButton } from '../components/BigButton';
 
-export const HomeScreen = ({ onNavigate }) => {
+export const HomeScreen = ({ onNavigate, onLogout }) => {
   const { t, language } = useLanguage();
   const { isOnline } = useSync();
   const { speak } = useVoice();
+  const [profile, setProfile] = useState(null);
   const [summary, setSummary] = useState({
     total_sales: 0,
     total_purchases: 0,
@@ -25,6 +27,9 @@ export const HomeScreen = ({ onNavigate }) => {
 
   const loadData = async () => {
     try {
+      const u = await LocalDB.getAuthUser();
+      setProfile(u);
+
       const sum = await api.getTodaySummary();
       setSummary(sum);
 
@@ -77,6 +82,68 @@ export const HomeScreen = ({ onNavigate }) => {
         contentContainerStyle={styles.scrollContent}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
       >
+        {/* VENDOR PROFILE HEADER CARD */}
+        {profile && (
+          <View style={styles.profileCard}>
+            <View style={styles.profileTopRow}>
+              <View style={styles.shopAvatarCircle}>
+                <MaterialCommunityIcons name="storefront" size={26} color="#FFFFFF" />
+              </View>
+              <View style={{ flex: 1, marginLeft: 10 }}>
+                <Text style={styles.profileShopName} numberOfLines={1}>
+                  {profile.shop_name || 'My Shop'}
+                </Text>
+                <View style={styles.profileDetailsRow}>
+                  <Text style={styles.profileVendorName}>
+                    👤 {profile.name || 'Vendor'}
+                  </Text>
+                  {profile.phone && (
+                    <Text style={styles.profilePhone}>
+                      • 📞 {profile.phone}
+                    </Text>
+                  )}
+                </View>
+              </View>
+            </View>
+
+            <View style={styles.profileActionsRow}>
+              <TouchableOpacity
+                onPress={() => onNavigate('onboarding_edit')}
+                style={styles.profileActionPill}
+                activeOpacity={0.75}
+              >
+                <MaterialCommunityIcons name="playlist-edit" size={16} color={THEME.colors.primary} />
+                <Text style={styles.profileActionText}>
+                  {language === 'ta' ? 'கடை பொருட்கள்' : 'Manage Products'}
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                onPress={() => onNavigate('settings')}
+                style={styles.profileActionPill}
+                activeOpacity={0.75}
+              >
+                <MaterialCommunityIcons name="account-cog-outline" size={16} color="#4B5563" />
+                <Text style={[styles.profileActionText, { color: '#4B5563' }]}>
+                  {language === 'ta' ? 'சுயவிவரம்' : 'Profile'}
+                </Text>
+              </TouchableOpacity>
+
+              {onLogout && (
+                <TouchableOpacity
+                  onPress={onLogout}
+                  style={[styles.profileActionPill, { backgroundColor: '#FEE2E2', borderColor: '#FCA5A5' }]}
+                  activeOpacity={0.75}
+                >
+                  <MaterialCommunityIcons name="logout" size={15} color="#DC2626" />
+                  <Text style={[styles.profileActionText, { color: '#DC2626' }]}>
+                    {t('logoutBtn')}
+                  </Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          </View>
+        )}
         {/* BIG MIC HERO BUTTON (Centerpiece) */}
         <View style={styles.micSection}>
           <TouchableOpacity
@@ -241,11 +308,11 @@ export const HomeScreen = ({ onNavigate }) => {
 
           <View style={styles.actionsRow}>
             <BigButton
-              title={t('tabPurchases')}
-              subtitle={language === 'ta' ? 'வாங்கிய விலை' : 'Log Wholesale Cost'}
-              icon="cart-plus"
-              color="#EF6C00"
-              onPress={() => onNavigate('purchases')}
+              title={language === 'ta' ? 'சந்தை நேரடி விலை' : 'Live Market Prices'}
+              subtitle={language === 'ta' ? 'அகமார்க்நெட் மண்டி நிலவரம்' : 'AGMARKNET Mandi Live'}
+              icon="chart-timeline-variant-shimmer"
+              color="#00695C"
+              onPress={() => onNavigate('marketIntelligence')}
               style={styles.gridBtn}
             />
             <BigButton
@@ -509,5 +576,78 @@ const styles = StyleSheet.create({
   },
   gridBtn: {
     flex: 1
+  },
+  profileCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    padding: 16,
+    marginBottom: 16,
+    borderWidth: 1.5,
+    borderColor: '#E5E7EB',
+    elevation: 3,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 4
+  },
+  profileTopRow: {
+    flexDirection: 'row',
+    alignItems: 'center'
+  },
+  shopAvatarCircle: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: THEME.colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    elevation: 2
+  },
+  profileShopName: {
+    fontSize: 18,
+    fontWeight: '900',
+    color: '#111827'
+  },
+  profileDetailsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    marginTop: 3
+  },
+  profileVendorName: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#4B5563'
+  },
+  profilePhone: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#6B7280',
+    marginLeft: 4
+  },
+  profileActionsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 12,
+    paddingTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: '#F3F4F6'
+  },
+  profileActionPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#F3F4F6',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    borderRadius: 14,
+    paddingHorizontal: 10,
+    paddingVertical: 6
+  },
+  profileActionText: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: THEME.colors.primary
   }
 });

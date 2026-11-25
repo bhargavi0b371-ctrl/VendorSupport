@@ -13,9 +13,80 @@ from .schemas import (
     DailyExpensesInput, PaymentBreakdownInput, VendorProductResponse
 )
 
-# --- Users ---
+# --- Users & Authentication ---
 def get_user(db: Session, user_id: int = 1) -> Optional[User]:
     return db.query(User).filter(User.id == user_id).first()
+
+def get_user_by_phone(db: Session, phone: str) -> Optional[User]:
+    clean_phone = phone.strip() if phone else ""
+    return db.query(User).filter(User.phone == clean_phone).first()
+
+def authenticate_user(db: Session, phone: str, pin: str) -> Optional[User]:
+    clean_phone = phone.strip() if phone else ""
+    clean_pin = pin.strip() if pin else ""
+    user = db.query(User).filter(User.phone == clean_phone).first()
+    if user and (user.pin == clean_pin or not user.pin):
+        return user
+    return None
+
+def create_or_register_user(
+    db: Session,
+    name: str,
+    shop_name: str,
+    phone: str,
+    pin: str = "1234",
+    language: str = "ta"
+) -> User:
+    clean_phone = phone.strip() if phone else ""
+    existing = get_user_by_phone(db, clean_phone)
+    if existing:
+        existing.name = name.strip() or existing.name
+        existing.shop_name = shop_name.strip() or existing.shop_name
+        existing.pin = pin.strip() or existing.pin
+        existing.language = language or existing.language
+        db.commit()
+        db.refresh(existing)
+        return existing
+
+    new_user = User(
+        name=name.strip() or "Vendor",
+        shop_name=shop_name.strip() or "My Shop",
+        phone=clean_phone,
+        pin=pin.strip() or "1234",
+        language=language or "ta",
+        onboarding_completed=False,
+        selected_categories="[]"
+    )
+    db.add(new_user)
+    db.commit()
+    db.refresh(new_user)
+    return new_user
+
+def update_vendor_profile(
+    db: Session,
+    user_id: int,
+    name: Optional[str] = None,
+    shop_name: Optional[str] = None,
+    phone: Optional[str] = None,
+    pin: Optional[str] = None,
+    language: Optional[str] = None
+) -> Optional[User]:
+    user = get_user(db, user_id)
+    if not user:
+        return None
+    if name is not None:
+        user.name = name.strip()
+    if shop_name is not None:
+        user.shop_name = shop_name.strip()
+    if phone is not None:
+        user.phone = phone.strip()
+    if pin is not None and pin.strip():
+        user.pin = pin.strip()
+    if language is not None:
+        user.language = language
+    db.commit()
+    db.refresh(user)
+    return user
 
 def update_user(db: Session, user_id: int, user_update: UserUpdate) -> Optional[User]:
     user = get_user(db, user_id)
@@ -99,31 +170,15 @@ def get_vendor_products(db: Session, user_id: int = 1) -> List[VendorProductResp
         VendorProduct.is_active == True
     ).all()
 
-    # If vendor has no linked products yet (first time before onboarding), return top 10 items
     if not vps:
-        default_items = db.query(Item).filter(Item.is_active == True).limit(10).all()
-        return [
-            VendorProductResponse(
-                id=idx + 1,
-                item_id=it.id,
-                name_en=it.name_en,
-                name_ta=it.name_ta,
-                category=it.category,
-                default_unit=it.default_unit,
-                icon=it.icon,
-                color=it.color,
-                is_active=True,
-                is_custom=it.is_custom
-            )
-            for idx, it in enumerate(default_items)
-        ]
+        return []
 
     results = []
     for vp in vps:
         it = vp.item
         if it and it.is_active:
             results.append(VendorProductResponse(
-                id=vp.id,
+                id=it.id,
                 item_id=it.id,
                 name_en=it.name_en,
                 name_ta=it.name_ta,
@@ -190,14 +245,32 @@ def toggle_vendor_product(db: Session, user_id: int, item_id: int, is_active: bo
 # --- Daily Sales Entry & Comprehensive Report ---
 def create_daily_entry(db: Session, entry_in: DailyEntrySubmit) -> DailyEntry:
     today_str = datetime.date.today().strftime("%Y-%m-%d")
-    entry_date = entry_in.date or today_str
+    entry_date = entry_in.date or entry_in.entry_date or today_str
 
     # Compute Expenses
-    exp = entry_in.expenses
-    total_expenses = float(exp.transport + exp.rent + exp.packaging + exp.other)
+    if entry_in.expenses:
+        exp_transport = float(entry_in.expenses.transport or entry_in.transport_cost or 0.0)
+        exp_rent = float(entry_in.expenses.rent or entry_in.rent_cost or 0.0)
+        exp_packaging = float(entry_in.expenses.packaging or entry_in.packaging_cost or 0.0)
+        exp_other = float(entry_in.expenses.other or entry_in.other_expenses or 0.0)
+    else:
+        exp_transport = float(entry_in.transport_cost or 0.0)
+        exp_rent = float(entry_in.rent_cost or 0.0)
+        exp_packaging = float(entry_in.packaging_cost or 0.0)
+        exp_other = float(entry_in.other_expenses or 0.0)
+    total_expenses = float(exp_transport + exp_rent + exp_packaging + exp_other)
 
     # Compute Payments
-    pay = entry_in.payments
+    if entry_in.payments:
+        pay_cash = float(entry_in.payments.cash or entry_in.cash_collection or 0.0)
+        pay_upi = float(entry_in.payments.upi or entry_in.upi_collection or 0.0)
+        pay_digital_other = float(entry_in.payments.digital_other or entry_in.other_digital_collection or 0.0)
+        pay_credit_pending = float(entry_in.payments.credit_pending or entry_in.pending_credit or 0.0)
+    else:
+        pay_cash = float(entry_in.cash_collection or 0.0)
+        pay_upi = float(entry_in.upi_collection or 0.0)
+        pay_digital_other = float(entry_in.other_digital_collection or 0.0)
+        pay_credit_pending = float(entry_in.pending_credit or 0.0)
 
     # Calculate item-wise financials
     total_revenue = 0.0
@@ -210,11 +283,14 @@ def create_daily_entry(db: Session, entry_in: DailyEntrySubmit) -> DailyEntry:
         if it_in.quantity_sold <= 0 and it_in.unsold_quantity <= 0 and it_in.damaged_quantity <= 0:
             continue
 
-        item_rev = round(it_in.quantity_sold * it_in.selling_price_per_unit, 2)
-        item_cogs = round(it_in.quantity_sold * it_in.purchase_cost_per_unit, 2)
+        sp = it_in.selling_price_per_unit if it_in.selling_price_per_unit > 0 else (it_in.selling_price or 0.0)
+        cost = it_in.purchase_cost_per_unit if it_in.purchase_cost_per_unit > 0 else (it_in.purchase_cost or 0.0)
+
+        item_rev = round(it_in.quantity_sold * sp, 2)
+        item_cogs = round(it_in.quantity_sold * cost, 2)
         item_gross = round(item_rev - item_cogs, 2)
-        item_wastage = round(it_in.damaged_quantity * it_in.purchase_cost_per_unit, 2)
-        item_unsold_val = round(it_in.unsold_quantity * it_in.purchase_cost_per_unit, 2)
+        item_wastage = round(it_in.damaged_quantity * cost, 2)
+        item_unsold_val = round(it_in.unsold_quantity * cost, 2)
 
         total_revenue += item_rev
         total_cogs += item_cogs
@@ -224,8 +300,8 @@ def create_daily_entry(db: Session, entry_in: DailyEntrySubmit) -> DailyEntry:
         items_to_save.append({
             "item_id": it_in.item_id,
             "quantity_sold": it_in.quantity_sold,
-            "selling_price_per_unit": it_in.selling_price_per_unit,
-            "purchase_cost_per_unit": it_in.purchase_cost_per_unit,
+            "selling_price_per_unit": sp,
+            "purchase_cost_per_unit": cost,
             "unsold_quantity": it_in.unsold_quantity,
             "damaged_quantity": it_in.damaged_quantity,
             "item_revenue": item_rev,
@@ -247,15 +323,15 @@ def create_daily_entry(db: Session, entry_in: DailyEntrySubmit) -> DailyEntry:
 
     if existing_entry:
         entry = existing_entry
-        entry.expense_transport = exp.transport
-        entry.expense_rent = exp.rent
-        entry.expense_packaging = exp.packaging
-        entry.expense_other = exp.other
+        entry.expense_transport = exp_transport
+        entry.expense_rent = exp_rent
+        entry.expense_packaging = exp_packaging
+        entry.expense_other = exp_other
         entry.total_expenses = total_expenses
-        entry.payment_cash = pay.cash
-        entry.payment_upi = pay.upi
-        entry.payment_digital_other = pay.digital_other
-        entry.payment_credit_pending = pay.credit_pending
+        entry.payment_cash = pay_cash
+        entry.payment_upi = pay_upi
+        entry.payment_digital_other = pay_digital_other
+        entry.payment_credit_pending = pay_credit_pending
         entry.total_revenue = round(total_revenue, 2)
         entry.total_cogs = round(total_cogs, 2)
         entry.gross_profit = gross_profit
@@ -266,19 +342,25 @@ def create_daily_entry(db: Session, entry_in: DailyEntrySubmit) -> DailyEntry:
         entry.notes = entry_in.notes
         # Delete existing items to replace with updated batch
         db.query(DailyEntryItem).filter(DailyEntryItem.daily_entry_id == entry.id).delete()
+        # Delete prior sales records created for this daily entry to avoid duplicates
+        db.query(Sale).filter(
+            Sale.user_id == entry_in.user_id,
+            Sale.sale_date == entry_date,
+            Sale.voice_raw_text == "Daily Sales Entry"
+        ).delete()
     else:
         entry = DailyEntry(
             user_id=entry_in.user_id,
             date=entry_date,
-            expense_transport=exp.transport,
-            expense_rent=exp.rent,
-            expense_packaging=exp.packaging,
-            expense_other=exp.other,
+            expense_transport=exp_transport,
+            expense_rent=exp_rent,
+            expense_packaging=exp_packaging,
+            expense_other=exp_other,
             total_expenses=total_expenses,
-            payment_cash=pay.cash,
-            payment_upi=pay.upi,
-            payment_digital_other=pay.digital_other,
-            payment_credit_pending=pay.credit_pending,
+            payment_cash=pay_cash,
+            payment_upi=pay_upi,
+            payment_digital_other=pay_digital_other,
+            payment_credit_pending=pay_credit_pending,
             total_revenue=round(total_revenue, 2),
             total_cogs=round(total_cogs, 2),
             gross_profit=gross_profit,
@@ -589,6 +671,7 @@ def get_daily_entries_history(db: Session, user_id: int = 1) -> List[Dict[str, A
             "id": e.id,
             "date": e.date,
             "total_revenue": e.total_revenue,
+            "total_sales_revenue": e.total_revenue,
             "net_profit": e.net_profit,
             "profit_margin_pct": e.profit_margin_pct,
             "items_count": len(e.items)
@@ -792,13 +875,23 @@ def get_period_report(db: Session, user_id: int = 1, period: str = "daily") -> D
             s_str = start_d.strftime("%Y-%m-%d")
             e_str = end_d.strftime("%Y-%m-%d")
 
-            w_sales = db.query(func.sum(Sale.amount)).filter(
-                Sale.user_id == user_id, Sale.sale_date >= s_str, Sale.sale_date <= e_str
-            ).scalar() or 0.0
-            w_purchases = db.query(func.sum(Purchase.total_cost)).filter(
-                Purchase.user_id == user_id, Purchase.purchase_date >= s_str, Purchase.purchase_date <= e_str
-            ).scalar() or 0.0
-            w_profit = w_sales - w_purchases
+            # Check DailyEntries in this week
+            de_entries = db.query(DailyEntry).filter(
+                DailyEntry.user_id == user_id, DailyEntry.date >= s_str, DailyEntry.date <= e_str
+            ).all()
+
+            if de_entries:
+                w_sales = sum(de.total_revenue for de in de_entries)
+                w_purchases = sum(de.total_cogs + de.total_expenses for de in de_entries)
+                w_profit = sum(de.net_profit for de in de_entries)
+            else:
+                w_sales = db.query(func.sum(Sale.amount)).filter(
+                    Sale.user_id == user_id, Sale.sale_date >= s_str, Sale.sale_date <= e_str
+                ).scalar() or 0.0
+                w_purchases = db.query(func.sum(Purchase.total_cost)).filter(
+                    Purchase.user_id == user_id, Purchase.purchase_date >= s_str, Purchase.purchase_date <= e_str
+                ).scalar() or 0.0
+                w_profit = w_sales - w_purchases
 
             total_sales += w_sales
             total_purchases += w_purchases
@@ -819,13 +912,22 @@ def get_period_report(db: Session, user_id: int = 1, period: str = "daily") -> D
             month_prefix = d.strftime("%Y-%m")
             month_label = d.strftime("%b")
 
-            m_sales = db.query(func.sum(Sale.amount)).filter(
-                Sale.user_id == user_id, Sale.sale_date.like(f"{month_prefix}%")
-            ).scalar() or 0.0
-            m_purchases = db.query(func.sum(Purchase.total_cost)).filter(
-                Purchase.user_id == user_id, Purchase.purchase_date.like(f"{month_prefix}%")
-            ).scalar() or 0.0
-            m_profit = m_sales - m_purchases
+            de_entries = db.query(DailyEntry).filter(
+                DailyEntry.user_id == user_id, DailyEntry.date.like(f"{month_prefix}%")
+            ).all()
+
+            if de_entries:
+                m_sales = sum(de.total_revenue for de in de_entries)
+                m_purchases = sum(de.total_cogs + de.total_expenses for de in de_entries)
+                m_profit = sum(de.net_profit for de in de_entries)
+            else:
+                m_sales = db.query(func.sum(Sale.amount)).filter(
+                    Sale.user_id == user_id, Sale.sale_date.like(f"{month_prefix}%")
+                ).scalar() or 0.0
+                m_purchases = db.query(func.sum(Purchase.total_cost)).filter(
+                    Purchase.user_id == user_id, Purchase.purchase_date.like(f"{month_prefix}%")
+                ).scalar() or 0.0
+                m_profit = m_sales - m_purchases
 
             total_sales += m_sales
             total_purchases += m_purchases
@@ -841,23 +943,47 @@ def get_period_report(db: Session, user_id: int = 1, period: str = "daily") -> D
     net_profit = total_sales - total_purchases
     profit_margin_pct = round((net_profit / total_sales * 100), 1) if total_sales > 0 else 0.0
 
-    top_items_raw = db.query(
+    # Aggregate top selling items from BOTH DailyEntryItem and Sale
+    item_stats: Dict[int, Dict[str, float]] = {}
+
+    # 1. From DailyEntryItem
+    daily_items = db.query(DailyEntryItem).join(DailyEntry).filter(
+        DailyEntry.user_id == user_id
+    ).all()
+    for di in daily_items:
+        if di.item_id not in item_stats:
+            item_stats[di.item_id] = {"total_qty": 0.0, "total_revenue": 0.0}
+        item_stats[di.item_id]["total_qty"] += di.quantity_sold
+        item_stats[di.item_id]["total_revenue"] += di.item_revenue
+
+    # 2. From standalone Sales
+    sales_items = db.query(
         Sale.item_id,
-        func.sum(Sale.quantity).label("total_qty"),
-        func.sum(Sale.amount).label("total_revenue")
-    ).filter(Sale.user_id == user_id).group_by(Sale.item_id).order_by(desc("total_revenue")).limit(5).all()
+        func.sum(Sale.quantity).label("qty"),
+        func.sum(Sale.amount).label("rev")
+    ).filter(Sale.user_id == user_id).group_by(Sale.item_id).all()
+    for si in sales_items:
+        if si.item_id not in item_stats:
+            item_stats[si.item_id] = {"total_qty": 0.0, "total_revenue": 0.0}
+        item_stats[si.item_id]["total_qty"] += float(si.qty or 0)
+        item_stats[si.item_id]["total_revenue"] += float(si.rev or 0)
+
+    # Sort by total revenue descending
+    sorted_items = sorted(item_stats.items(), key=lambda x: x[1]["total_revenue"], reverse=True)[:5]
 
     top_selling = []
-    for row in top_items_raw:
-        item = get_item_by_id(db, row.item_id)
+    for item_id, stats in sorted_items:
+        if stats["total_revenue"] <= 0 and stats["total_qty"] <= 0:
+            continue
+        item = get_item_by_id(db, item_id)
         if item:
             top_selling.append({
                 "item_id": item.id,
                 "name_en": item.name_en,
                 "name_ta": item.name_ta,
-                "total_qty": round(row.total_qty, 1),
+                "total_qty": round(stats["total_qty"], 1),
                 "unit": item.default_unit,
-                "total_revenue": round(row.total_revenue, 2),
+                "total_revenue": round(stats["total_revenue"], 2),
                 "icon": item.icon,
                 "color": item.color
             })
@@ -865,6 +991,7 @@ def get_period_report(db: Session, user_id: int = 1, period: str = "daily") -> D
     return {
         "period": period,
         "total_sales": round(total_sales, 2),
+        "total_revenue": round(total_sales, 2),
         "total_purchases": round(total_purchases, 2),
         "net_profit": round(net_profit, 2),
         "profit_margin_pct": profit_margin_pct,

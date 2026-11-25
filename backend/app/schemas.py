@@ -4,7 +4,9 @@ from pydantic import BaseModel, Field
 # User
 class UserBase(BaseModel):
     name: str = "Murugan"
+    shop_name: Optional[str] = "Murugan Vegetable Stall"
     phone: Optional[str] = None
+    pin: Optional[str] = "1234"
     language: str = "ta"
     default_margin_pct: float = 20.0
     onboarding_completed: bool = False
@@ -12,16 +14,43 @@ class UserBase(BaseModel):
 
 class UserUpdate(BaseModel):
     name: Optional[str] = None
+    shop_name: Optional[str] = None
     phone: Optional[str] = None
+    pin: Optional[str] = None
     language: Optional[str] = None
     default_margin_pct: Optional[float] = None
     onboarding_completed: Optional[bool] = None
     selected_categories: Optional[str] = None
 
+class UserRegister(BaseModel):
+    name: str
+    shop_name: str
+    phone: str
+    pin: str = "1234"
+    language: str = "ta"
+
+class UserLogin(BaseModel):
+    phone: str
+    pin: str
+
+class UserProfileUpdate(BaseModel):
+    name: Optional[str] = None
+    shop_name: Optional[str] = None
+    phone: Optional[str] = None
+    pin: Optional[str] = None
+    language: Optional[str] = None
+
 class UserResponse(UserBase):
     id: int
     class Config:
         from_attributes = True
+
+class AuthResponse(BaseModel):
+    status: str = "success"
+    token: str
+    user: UserResponse
+    message_en: str
+    message_ta: str
 
 
 # Item & Products
@@ -205,9 +234,12 @@ class DailyEntryItemInput(BaseModel):
     item_id: int
     quantity_sold: float = 0.0
     selling_price_per_unit: float = 0.0
+    selling_price: Optional[float] = None
     purchase_cost_per_unit: float = 0.0
+    purchase_cost: Optional[float] = None
     unsold_quantity: float = 0.0
     damaged_quantity: float = 0.0
+    notes: Optional[str] = None
 
 class DailyExpensesInput(BaseModel):
     transport: float = 0.0
@@ -224,9 +256,18 @@ class PaymentBreakdownInput(BaseModel):
 class DailyEntrySubmit(BaseModel):
     user_id: int = 1
     date: Optional[str] = None  # defaults to today YYYY-MM-DD
-    items: List[DailyEntryItemInput]
-    expenses: DailyExpensesInput = DailyExpensesInput()
-    payments: PaymentBreakdownInput = PaymentBreakdownInput()
+    entry_date: Optional[str] = None
+    items: List[DailyEntryItemInput] = []
+    expenses: Optional[DailyExpensesInput] = None
+    payments: Optional[PaymentBreakdownInput] = None
+    transport_cost: Optional[float] = 0.0
+    rent_cost: Optional[float] = 0.0
+    packaging_cost: Optional[float] = 0.0
+    other_expenses: Optional[float] = 0.0
+    cash_collection: Optional[float] = 0.0
+    upi_collection: Optional[float] = 0.0
+    other_digital_collection: Optional[float] = 0.0
+    pending_credit: Optional[float] = 0.0
     notes: Optional[str] = None
     sync_id: Optional[str] = None
 

@@ -15,8 +15,9 @@ import { THEME } from '../constants/theme';
 import { useLanguage } from '../context/LanguageContext';
 import { api } from '../api/client';
 import { LocalDB } from '../db/localDb';
+import { Header } from '../components/Header';
 
-export const OnboardingScreen = ({ onComplete, isEditMode = false }) => {
+export const OnboardingScreen = ({ onComplete, onNavigate, isEditMode = false }) => {
   const { t, language } = useLanguage();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -48,6 +49,23 @@ export const OnboardingScreen = ({ onComplete, isEditMode = false }) => {
     { key: 'plate', label: 'plate (பிளேட்)' }
   ];
 
+  const isProductInCat = (p, catId) => {
+    if (!p) return false;
+    const cat = (p.category || '').toLowerCase().trim();
+    const cId = (catId || '').toLowerCase().trim();
+    if (cId === 'fruits_vegetables') {
+      return cat.includes('fruit') || cat.includes('veg');
+    }
+    if (cId === 'fruits' || cId === 'fruit') return cat.includes('fruit');
+    if (cId === 'vegetables' || cId === 'vegetable') return cat.includes('veg') || cat === 'herb';
+    if (cId === 'flowers' || cId === 'flower') return cat.includes('flower');
+    if (cId === 'street_food' || cId === 'streetfood') return cat.includes('street') || cat.includes('snack') || cat.includes('food');
+    if (cId === 'tea_coffee' || cId === 'teacoffee') return cat.includes('tea') || cat.includes('coffee') || cat.includes('beverage');
+    if (cId === 'groceries' || cId === 'grocery') return cat.includes('groc');
+    if (cId === 'clothes' || cId === 'clothes_accessories' || cId === 'clothing') return cat.includes('cloth') || cat.includes('wear') || cat.includes('access');
+    return cat === cId;
+  };
+
   useEffect(() => {
     loadCatalog();
   }, []);
@@ -57,7 +75,8 @@ export const OnboardingScreen = ({ onComplete, isEditMode = false }) => {
     try {
       const catalog = await api.getOnboardingCatalog();
       setCategories(catalog.categories || []);
-      setAllProducts(catalog.predefined_products || []);
+      const fetchedProducts = catalog.all_predefined_items || catalog.predefined_products || [];
+      setAllProducts(fetchedProducts);
 
       // If user had existing selections or was already onboarded, load them
       const savedCats = await LocalDB.getSelectedCategories();
@@ -66,25 +85,32 @@ export const OnboardingScreen = ({ onComplete, isEditMode = false }) => {
       if (savedCats && savedCats.length > 0) {
         setSelectedCategories(savedCats);
       } else {
-        // Default select 'vegetables'
         setSelectedCategories(['vegetables']);
       }
 
+      const idSet = new Set();
+      const loadedCustom = [];
       if (existingVendorProducts && existingVendorProducts.length > 0) {
-        const idSet = new Set();
         existingVendorProducts.forEach(p => {
-          if (p.is_active) idSet.add(p.id);
+          const pId = p.item_id || p.id;
+          if (p.is_active) idSet.add(pId);
+          if (p.is_custom) {
+            loadedCustom.push({
+              id: pId,
+              name_en: p.name_en,
+              name_ta: p.name_ta || p.name_en,
+              category: p.category,
+              default_unit: p.default_unit || 'kg',
+              is_custom: true
+            });
+          }
         });
         setSelectedProductIds(idSet);
+        if (loadedCustom.length > 0) {
+          setCustomProducts(loadedCustom);
+        }
       } else {
-        // Pre-select top vegetable items by default
-        const defaultIds = new Set(
-          (catalog.predefined_products || [])
-            .filter(p => p.category === 'vegetables' || p.category === 'vegetable')
-            .slice(0, 6)
-            .map(p => p.id)
-        );
-        setSelectedProductIds(defaultIds);
+        setSelectedProductIds(new Set());
       }
     } catch (e) {
       console.warn("Failed to load catalog", e);
@@ -96,24 +122,23 @@ export const OnboardingScreen = ({ onComplete, isEditMode = false }) => {
   const toggleCategory = (catId) => {
     let updated;
     if (selectedCategories.includes(catId)) {
-      if (selectedCategories.length === 1) {
-        // Keep at least one
+      if (selectedCategories.length === 1 && !isEditMode) {
         return;
       }
       updated = selectedCategories.filter(c => c !== catId);
+      // Remove unselected category's products from selectedProductIds
+      const nextSet = new Set(selectedProductIds);
+      allProducts.forEach(p => {
+        if (isProductInCat(p, catId)) {
+          nextSet.delete(p.id);
+        }
+      });
+      setSelectedProductIds(nextSet);
     } else {
       updated = [...selectedCategories, catId];
+      // Do not auto-select products - let vendor specifically choose specific products under this category
     }
     setSelectedCategories(updated);
-
-    // Auto-select products belonging to this newly added category
-    const newlyAdded = updated.filter(c => !selectedCategories.includes(c));
-    if (newlyAdded.length > 0) {
-      const catMatches = allProducts.filter(p => newlyAdded.includes(p.category));
-      const nextSet = new Set(selectedProductIds);
-      catMatches.forEach(p => nextSet.add(p.id));
-      setSelectedProductIds(nextSet);
-    }
   };
 
   const toggleProduct = (productId) => {
@@ -128,17 +153,17 @@ export const OnboardingScreen = ({ onComplete, isEditMode = false }) => {
 
   const selectAllFiltered = () => {
     const nextSet = new Set(selectedProductIds);
-    filteredProducts.forEach(p => nextSet.add(p.id));
+    displayedProducts.forEach(p => nextSet.add(p.id));
     setSelectedProductIds(nextSet);
   };
 
   const deselectAllFiltered = () => {
     const nextSet = new Set(selectedProductIds);
-    filteredProducts.forEach(p => nextSet.delete(p.id));
+    displayedProducts.forEach(p => nextSet.delete(p.id));
     setSelectedProductIds(nextSet);
   };
 
-  const handleAddCustomProduct = async () => {
+  const handleAddCustomProduct = () => {
     if (!customName.trim()) {
       Alert.alert(
         language === 'ta' ? 'பிழை' : 'Missing Information',
@@ -147,20 +172,29 @@ export const OnboardingScreen = ({ onComplete, isEditMode = false }) => {
       return;
     }
 
+    const customId = `custom_${Date.now()}`;
+    const targetCat = customCategory || selectedCategories[0] || 'vegetables';
     const newProd = {
+      id: customId,
       name_en: customName.trim(),
       name_ta: customName.trim(),
-      category: customCategory,
-      default_unit: customUnit
+      category: targetCat,
+      default_unit: customUnit || 'kg',
+      is_custom: true
     };
 
-    setCustomProducts([...customProducts, newProd]);
+    setCustomProducts(prev => [...prev, newProd]);
+    if (!selectedCategories.includes(targetCat)) {
+      setSelectedCategories(prev => [...prev, targetCat]);
+    }
+    setSelectedProductIds(prev => new Set([...prev, customId]));
     setModalVisible(false);
     setCustomName('');
   };
 
   const handleSave = async () => {
-    if (selectedProductIds.size === 0 && customProducts.length === 0) {
+    const selectedDisplayed = displayedProducts.filter(p => selectedProductIds.has(p.id));
+    if (selectedProductIds.size === 0 && selectedDisplayed.length === 0) {
       Alert.alert(
         language === 'ta' ? 'பொருட்களை தேர்வு செய்யவும்' : 'Select at least one product',
         language === 'ta' ? 'விற்பனை செய்ய குறைந்தபட்சம் 1 பொருளை தேர்வு செய்யவும்' : 'Please select at least 1 product to sell.'
@@ -170,10 +204,18 @@ export const OnboardingScreen = ({ onComplete, isEditMode = false }) => {
 
     setSaving(true);
     try {
+      const numericProductIds = Array.from(selectedProductIds).filter(id => typeof id === 'number');
+      const customProductsToSave = customProducts.filter(cp => selectedProductIds.has(cp.id)).map(cp => ({
+        name_en: cp.name_en,
+        name_ta: cp.name_ta || cp.name_en,
+        category: cp.category,
+        default_unit: cp.default_unit || 'kg'
+      }));
+
       const payload = {
         selected_categories: selectedCategories,
-        product_ids: Array.from(selectedProductIds),
-        custom_products: customProducts
+        product_ids: numericProductIds,
+        custom_products: customProductsToSave
       };
 
       await api.submitOnboarding(payload);
@@ -182,26 +224,30 @@ export const OnboardingScreen = ({ onComplete, isEditMode = false }) => {
         onComplete();
       }
     } catch (e) {
-      Alert.alert(
-        language === 'ta' ? 'சேமிக்கப்பட்டது' : 'Saved',
-        language === 'ta' ? 'உங்கள் பொருட்கள் வெற்றிகரமாக சேமிக்கப்பட்டது' : 'Your products have been saved.'
-      );
+      console.warn("Save onboarding error", e);
       if (onComplete) onComplete();
     } finally {
       setSaving(false);
     }
   };
 
-  // Filter products by selected categories
-  const filteredProducts = allProducts.filter(p => {
-    if (selectedCategories.includes('fruits_vegetables')) {
-      if (p.category === 'fruits' || p.category === 'vegetables' || p.category === 'vegetable' || p.category === 'fruit') return true;
-    }
-    return selectedCategories.includes(p.category) ||
-      (p.category === 'vegetable' && selectedCategories.includes('vegetables')) ||
-      (p.category === 'fruit' && selectedCategories.includes('fruits')) ||
-      (p.category === 'flower' && selectedCategories.includes('flowers'));
+  // Filter default products by selected categories
+  const filteredDefaultProducts = allProducts.filter(p => {
+    return selectedCategories.some(catId => isProductInCat(p, catId));
   });
+
+  // Filter custom products by selected categories
+  const filteredCustomProducts = customProducts.filter(cp => {
+    return selectedCategories.some(catId => isProductInCat(cp, catId));
+  });
+
+  // Combined list shown under Choose Your Products
+  const displayedProducts = [
+    ...filteredDefaultProducts,
+    ...filteredCustomProducts
+  ];
+
+  const selectedCountInView = displayedProducts.filter(p => selectedProductIds.has(p.id)).length;
 
   if (loading) {
     return (
@@ -214,12 +260,23 @@ export const OnboardingScreen = ({ onComplete, isEditMode = false }) => {
 
   return (
     <View style={styles.screen}>
+      <Header
+        title={language === 'ta' ? 'பொருட்கள் மேலாண்மை (Manage My Products)' : 'Manage My Products'}
+        showBack={isEditMode}
+        onBack={() => onComplete ? onComplete() : (onNavigate ? onNavigate('home') : null)}
+      />
       <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
         {/* HEADER / INTRO */}
         <View style={styles.headerBox}>
-          <MaterialCommunityIcons name="store-check" size={38} color={THEME.colors.primary} />
-          <Text style={styles.headerTitle}>{t('onboardingQuestion')}</Text>
-          <Text style={styles.headerSubtitle}>{t('onboardingSubtitle')}</Text>
+          <MaterialCommunityIcons name="store-cog" size={38} color={THEME.colors.primary} />
+          <Text style={styles.headerTitle}>
+            {language === 'ta' ? 'பொருட்கள் மேலாண்மை (Manage My Products)' : 'Manage My Products'}
+          </Text>
+          <Text style={styles.headerSubtitle}>
+            {language === 'ta'
+              ? 'உங்கள் கடையில் விற்கும் வகைகளையும் குறிப்பிட்ட பொருட்களையும் தேர்வு செய்யவும்'
+              : 'Choose the categories and specific products you sell in your shop'}
+          </Text>
         </View>
 
         {/* STEP 1: CATEGORY MULTI-SELECTION GRID */}
@@ -261,11 +318,13 @@ export const OnboardingScreen = ({ onComplete, isEditMode = false }) => {
           })}
         </View>
 
-        {/* STEP 2: PREDEFINED PRODUCTS LIST */}
+        {/* STEP 2: PREDEFINED & CUSTOM PRODUCTS LIST */}
         <View style={styles.productsSection}>
           <View style={styles.sectionHeaderRow}>
             <View style={{ flex: 1 }}>
-              <Text style={styles.sectionTitle}>{t('selectProductsTitle')}</Text>
+              <Text style={styles.sectionTitle}>
+                {t('selectProductsTitle')} ({selectedCountInView} {language === 'ta' ? 'பொருட்கள் தேர்வு' : 'selected'})
+              </Text>
               <Text style={styles.sectionSubtitle}>{t('selectProductsSubtitle')}</Text>
             </View>
           </View>
@@ -284,50 +343,42 @@ export const OnboardingScreen = ({ onComplete, isEditMode = false }) => {
 
           {/* PRODUCTS CHIPS GRID */}
           <View style={styles.productsGrid}>
-            {filteredProducts.map((prod) => {
+            {displayedProducts.map((prod) => {
               const isChecked = selectedProductIds.has(prod.id);
               const prodName = language === 'ta' ? (prod.name_ta || prod.name_en) : (prod.name_en || prod.name_ta);
+              const isCustom = prod.is_custom;
 
               return (
                 <TouchableOpacity
-                  key={prod.id}
+                  key={String(prod.id)}
                   onPress={() => toggleProduct(prod.id)}
                   activeOpacity={0.75}
-                  style={[styles.productChip, isChecked && styles.productChipChecked]}
+                  style={[
+                    styles.productChip,
+                    isChecked && styles.productChipChecked,
+                    isCustom && styles.customProductChip
+                  ]}
                 >
                   <MaterialCommunityIcons
                     name={isChecked ? "checkbox-marked-circle" : "checkbox-blank-circle-outline"}
                     size={22}
-                    color={isChecked ? THEME.colors.primary : "#9CA3AF"}
+                    color={isChecked ? (isCustom ? "#E65100" : THEME.colors.primary) : "#9CA3AF"}
                   />
-                  <Text style={[styles.productChipText, isChecked && styles.productChipTextChecked]}>
-                    {prodName}
-                  </Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+                    <Text style={[styles.productChipText, isChecked && styles.productChipTextChecked]}>
+                      {prodName}
+                    </Text>
+                    {isCustom && (
+                      <View style={styles.customBadge}>
+                        <Text style={styles.customBadgeText}>Custom</Text>
+                      </View>
+                    )}
+                  </View>
                   <Text style={styles.unitPill}>({prod.default_unit || 'kg'})</Text>
                 </TouchableOpacity>
               );
             })}
           </View>
-
-          {/* CUSTOM PRODUCTS ALREADY ADDED */}
-          {customProducts.length > 0 && (
-            <View style={styles.customListContainer}>
-              <Text style={styles.customListTitle}>
-                {language === 'ta' ? 'நீங்கள் சேர்த்த தனிப்பயன் பொருட்கள்:' : 'Custom Products Added:'}
-              </Text>
-              <View style={styles.productsGrid}>
-                {customProducts.map((cp, idx) => (
-                  <View key={idx} style={[styles.productChip, styles.productChipChecked]}>
-                    <MaterialCommunityIcons name="star-circle" size={20} color="#FF9800" />
-                    <Text style={[styles.productChipText, styles.productChipTextChecked]}>
-                      {cp.name_en}
-                    </Text>
-                    <Text style={styles.unitPill}>({cp.default_unit})</Text>
-                  </View>
-                ))}
-              </View>
-            </View>
-          )}
 
           {/* + ADD CUSTOM PRODUCT BUTTON */}
           <TouchableOpacity
@@ -806,5 +857,20 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '800',
     color: '#FFFFFF'
+  },
+  customProductChip: {
+    borderColor: '#FFB74D',
+    backgroundColor: '#FFF8E1'
+  },
+  customBadge: {
+    backgroundColor: '#FF9800',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6
+  },
+  customBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 10,
+    fontWeight: '800'
   }
 });

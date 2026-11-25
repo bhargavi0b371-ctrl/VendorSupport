@@ -1,13 +1,21 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { THEME } from '../constants/theme';
 import { useLanguage } from '../context/LanguageContext';
 import { useSync } from '../context/SyncContext';
+import { LocalDB } from '../db/localDb';
 
 export const Header = ({ title, showBack = false, onBack }) => {
   const { language, toggleLanguage } = useLanguage();
   const { isOnline, pendingCount, syncNow, isSyncing } = useSync();
+  const [shopName, setShopName] = useState('');
+
+  useEffect(() => {
+    LocalDB.getAuthUser().then(u => {
+      if (u && u.shop_name) setShopName(u.shop_name);
+    }).catch(() => {});
+  }, []);
 
   return (
     <View style={styles.container}>
@@ -17,10 +25,10 @@ export const Header = ({ title, showBack = false, onBack }) => {
             <MaterialCommunityIcons name="arrow-left" size={28} color="#FFFFFF" />
           </TouchableOpacity>
         )}
-        <View>
-          <Text style={styles.title}>{title}</Text>
-          <Text style={styles.subTitle}>
-            {language === 'ta' ? 'வெண்டார் வாய்ஸ்' : 'VendorVoice'}
+        <View style={{ flexShrink: 1 }}>
+          <Text style={styles.title} numberOfLines={1}>{title}</Text>
+          <Text style={styles.subTitle} numberOfLines={1}>
+            {shopName ? `🏪 ${shopName}` : (language === 'ta' ? 'வெண்டார் வாய்ஸ்' : 'VendorVoice')}
           </Text>
         </View>
       </View>

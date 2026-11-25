@@ -4,7 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from .database import engine, Base, SessionLocal
 from .seed_data import seed_database
 from .routers import (
-    sales, purchases, reports, pricing, markets, voice, sync, items,
+    auth, sales, purchases, reports, pricing, markets, voice, sync, items,
     onboarding, daily_sales, market_intelligence, price_prediction
 )
 
@@ -35,6 +35,7 @@ app.add_middleware(
 )
 
 # Include all route modules
+app.include_router(auth.router)
 app.include_router(onboarding.router)
 app.include_router(daily_sales.router)
 app.include_router(sales.router)

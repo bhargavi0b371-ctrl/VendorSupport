@@ -311,6 +311,20 @@ export const DailyReportModal = ({ visible, onClose, reportData, onRevisitReport
                   onClose();
                   onRevisitReports();
                 }}
+                style={styles.viewGraphsBtn}
+                activeOpacity={0.85}
+              >
+                <MaterialCommunityIcons name="chart-bar" size={22} color="#FFFFFF" />
+                <Text style={styles.viewGraphsBtnText}>{t('viewOnGraphs')}</Text>
+              </TouchableOpacity>
+            )}
+
+            {onRevisitReports && (
+              <TouchableOpacity
+                onPress={() => {
+                  onClose();
+                  onRevisitReports();
+                }}
                 style={styles.revisitBtn}
               >
                 <MaterialCommunityIcons name="history" size={20} color={THEME.colors.primary} />
@@ -622,6 +636,26 @@ const styles = StyleSheet.create({
   actionRow: {
     gap: 12,
     marginTop: 4
+  },
+  viewGraphsBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#1E88E5',
+    borderRadius: THEME.borderRadius.md,
+    paddingVertical: 14,
+    gap: 8,
+    elevation: 3,
+    shadowColor: '#1E88E5',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.3,
+    shadowRadius: 5
+  },
+  viewGraphsBtnText: {
+    fontSize: 16,
+    fontWeight: '900',
+    color: '#FFFFFF',
+    letterSpacing: 0.5
   },
   revisitBtn: {
     flexDirection: 'row',

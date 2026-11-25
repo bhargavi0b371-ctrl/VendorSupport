@@ -12,6 +12,7 @@ export const useVoice = () => {
   const [parsedResult, setParsedResult] = useState(null);
   const [lastSpokenText, setLastSpokenText] = useState('');
   const recognitionRef = useRef(null);
+  const transcriptRef = useRef('');
 
   // Initialize SpeechRecognition on Web / Android Web if available
   useEffect(() => {
@@ -19,7 +20,7 @@ export const useVoice = () => {
       const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
       if (SpeechRecognition) {
         const recognition = new SpeechRecognition();
-        recognition.continuous = false;
+        recognition.continuous = true; // Continuous listening until explicit stop click
         recognition.interimResults = true;
         recognition.lang = language === 'ta' ? 'ta-IN' : 'en-IN';
 
@@ -28,14 +29,20 @@ export const useVoice = () => {
         };
 
         recognition.onresult = (event) => {
-          const current = event.resultIndex;
-          const text = event.results[current][0].transcript;
-          setTranscript(text);
+          let fullTranscript = '';
+          for (let i = 0; i < event.results.length; i++) {
+            fullTranscript += event.results[i][0].transcript + ' ';
+          }
+          const cleanText = fullTranscript.trim();
+          transcriptRef.current = cleanText;
+          setTranscript(cleanText);
         };
 
         recognition.onerror = (event) => {
           console.warn("Speech recognition error:", event.error);
-          setIsListening(false);
+          if (event.error !== 'no-speech') {
+            setIsListening(false);
+          }
         };
 
         recognition.onend = () => {
@@ -76,12 +83,14 @@ export const useVoice = () => {
   // Start Voice Recording / Listening
   const startListening = () => {
     setTranscript('');
+    transcriptRef.current = '';
     setParsedResult(null);
 
     if (recognitionRef.current) {
       try {
         recognitionRef.current.lang = language === 'ta' ? 'ta-IN' : 'en-IN';
         recognitionRef.current.start();
+        setIsListening(true);
         return;
       } catch (e) {
         console.warn("Could not start native speech recognition", e);
@@ -102,8 +111,18 @@ export const useVoice = () => {
     }
     setIsListening(false);
 
-    if (transcript && transcript.trim()) {
-      await processText(transcript);
+    const captured = (transcriptRef.current || transcript || '').trim();
+    if (captured) {
+      await processText(captured);
+    }
+  };
+
+  // Toggle listening helper: 1st click starts, 2nd click ends and processes
+  const toggleListening = async () => {
+    if (isListening) {
+      await stopListening();
+    } else {
+      startListening();
     }
   };
 
@@ -168,6 +187,7 @@ export const useVoice = () => {
     lastSpokenText,
     startListening,
     stopListening,
+    toggleListening,
     processText,
     confirmAndExecute,
     speak

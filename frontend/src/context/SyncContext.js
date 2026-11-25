@@ -24,6 +24,14 @@ export const SyncProvider = ({ children }) => {
     setIsSyncing(true);
     try {
       const res = await api.syncOfflineData();
+      try {
+        const vProds = await api.getVendorProducts();
+        if (vProds) {
+          await LocalDB.saveVendorProducts(vProds);
+        }
+      } catch (err) {
+        // ignore product sync error if offline
+      }
       await refreshPendingCount();
       setIsOnline(true);
       setLastSyncTime(new Date().toLocaleTimeString());

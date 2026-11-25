@@ -4,6 +4,9 @@ import datetime
 import logging
 from typing import List, Dict, Any, Optional
 import httpx
+from dotenv import load_dotenv
+
+load_dotenv()
 from sqlalchemy.orm import Session
 from .models import Item, Market, MarketPrice
 from .database import SessionLocal
@@ -39,11 +42,12 @@ async def fetch_agmarknet_prices(api_key: Optional[str] = None) -> List[Dict[str
     """
     prices = []
     today_str = datetime.date.today().strftime("%Y-%m-%d")
+    effective_api_key = api_key or os.getenv("AGMARKNET_API_KEY") or os.getenv("DATA_GOV_IN_API_KEY")
 
-    if api_key:
+    if effective_api_key and effective_api_key.strip():
         try:
             params = {
-                "api-key": api_key,
+                "api-key": effective_api_key.strip(),
                 "format": "json",
                 "limit": 50,
                 "filters[state]": "Tamil Nadu"

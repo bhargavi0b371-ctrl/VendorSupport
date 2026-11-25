@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from typing import List, Dict, Any, Optional
 from ..database import get_db
+from ..models import Item
 from ..seed_data import CATEGORIES_CATALOG, PREDEFINED_ITEMS
 from ..crud import (
     save_vendor_onboarding, get_vendor_products, create_custom_item,
@@ -16,23 +17,54 @@ router = APIRouter(prefix="/api", tags=["Onboarding & Products"])
 
 @router.get("/onboarding/catalog")
 def get_onboarding_catalog(db: Session = Depends(get_db)):
-    """Returns all 9 product categories and their predefined items for the onboarding screen."""
+    """Returns all product categories and their items for the onboarding screen."""
+    db_items = db.query(Item).filter(Item.is_active == True).all()
+    items_list = [
+        {
+            "id": it.id,
+            "name_en": it.name_en,
+            "name_ta": it.name_ta,
+            "category": it.category,
+            "default_unit": it.default_unit,
+            "icon": it.icon,
+            "color": it.color,
+            "is_custom": it.is_custom
+        }
+        for it in db_items
+    ]
+
     categorized_items: Dict[str, List[Dict[str, Any]]] = {}
     for cat in CATEGORIES_CATALOG:
         categorized_items[cat["id"]] = []
 
-    # Map items into categories (and fruits_vegetables gets both)
-    for it in PREDEFINED_ITEMS:
-        c = it["category"]
-        if c in categorized_items:
-            categorized_items[c].append(it)
-        if c in ["fruits", "vegetables"]:
+    for it in items_list:
+        c = (it["category"] or "").lower()
+        # Normalization
+        if "veg" in c:
+            categorized_items["vegetables"].append(it)
             categorized_items["fruits_vegetables"].append(it)
+        elif "fruit" in c:
+            categorized_items["fruits"].append(it)
+            categorized_items["fruits_vegetables"].append(it)
+        elif "flower" in c:
+            categorized_items["flowers"].append(it)
+        elif "street" in c or "snack" in c or "food" in c:
+            categorized_items["street_food"].append(it)
+        elif "tea" in c or "coffee" in c:
+            categorized_items["tea_coffee"].append(it)
+        elif "groc" in c:
+            categorized_items["groceries"].append(it)
+        elif "cloth" in c or "access" in c:
+            categorized_items["clothes"].append(it)
+        else:
+            if "other" in categorized_items:
+                categorized_items["other"].append(it)
 
     return {
         "categories": CATEGORIES_CATALOG,
         "items_by_category": categorized_items,
-        "all_predefined_items": PREDEFINED_ITEMS
+        "all_predefined_items": items_list,
+        "predefined_products": items_list
     }
 
 @router.post("/onboarding", response_model=UserResponse)

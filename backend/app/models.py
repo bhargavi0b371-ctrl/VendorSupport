@@ -9,8 +9,11 @@ class User(Base):
     __tablename__ = "users"
 
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    shop_name = Column(String(150), nullable=True, default="My Shop")
     name = Column(String(100), nullable=False, default="Vendor")
-    phone = Column(String(20), nullable=True)
+    phone = Column(String(20), nullable=True, index=True)
+    pin = Column(String(20), nullable=True, default="1234")
+    password_hash = Column(String(200), nullable=True)
     language = Column(String(10), default="ta")  # 'ta' (Tamil) or 'en' (English)
     default_margin_pct = Column(Float, default=20.0)  # Default target margin 20%
     onboarding_completed = Column(Boolean, default=False)

@@ -23,6 +23,18 @@ def migrate_db():
         print("Migrating users: adding selected_categories...")
         cur.execute("ALTER TABLE users ADD COLUMN selected_categories TEXT DEFAULT '[]'")
 
+    if "shop_name" not in cols:
+        print("Migrating users: adding shop_name...")
+        cur.execute("ALTER TABLE users ADD COLUMN shop_name VARCHAR(150) DEFAULT 'My Shop'")
+
+    if "pin" not in cols:
+        print("Migrating users: adding pin...")
+        cur.execute("ALTER TABLE users ADD COLUMN pin VARCHAR(20) DEFAULT '1234'")
+
+    if "password_hash" not in cols:
+        print("Migrating users: adding password_hash...")
+        cur.execute("ALTER TABLE users ADD COLUMN password_hash VARCHAR(200)")
+
     # Check items table columns
     cur.execute("PRAGMA table_info(items)")
     item_cols = [col[1] for col in cur.fetchall()]

@@ -15,6 +15,7 @@ export const SmartPricingScreen = ({ onNavigate }) => {
   const [loading, setLoading] = useState(false);
   const [selectedItemForOverride, setSelectedItemForOverride] = useState(null);
   const [manualPriceInput, setManualPriceInput] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
 
   const loadPricing = async () => {
     setLoading(true);
@@ -89,6 +90,15 @@ export const SmartPricingScreen = ({ onNavigate }) => {
     }
   };
 
+  const filteredPricings = pricings.filter((p) => {
+    if (!searchQuery.trim()) return true;
+    const q = searchQuery.toLowerCase().trim();
+    const nameEn = (p.name_en || '').toLowerCase();
+    const nameTa = (p.name_ta || '').toLowerCase();
+    const cat = (p.category || '').toLowerCase();
+    return nameEn.includes(q) || nameTa.includes(q) || cat.includes(q);
+  });
+
   return (
     <View style={styles.screen}>
       <Header title={t('smartPricingTitle')} showBack onBack={() => onNavigate('home')} />
@@ -109,8 +119,35 @@ export const SmartPricingScreen = ({ onNavigate }) => {
           </View>
         </View>
 
+        {/* SEARCH BAR */}
+        <View style={styles.searchBarBox}>
+          <MaterialCommunityIcons name="magnify" size={24} color="#6B7280" style={{ marginRight: 8 }} />
+          <TextInput
+            style={styles.searchInput}
+            placeholder={language === 'ta' ? 'பொருட்களை தேடவும் (எ.கா: தக்காளி, மாம்பழம்)...' : 'Search products (e.g. Tomato, Mango)...'}
+            placeholderTextColor="#9CA3AF"
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+            autoCapitalize="none"
+          />
+          {searchQuery.trim().length > 0 && (
+            <TouchableOpacity onPress={() => setSearchQuery('')} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+              <MaterialCommunityIcons name="close-circle" size={20} color="#9CA3AF" />
+            </TouchableOpacity>
+          )}
+        </View>
+
         {/* PRICING ITEMS LIST */}
-        {pricings.map((p) => {
+        {filteredPricings.length === 0 && (
+          <View style={styles.noResultsBox}>
+            <MaterialCommunityIcons name="magnify-close" size={44} color="#9CA3AF" />
+            <Text style={styles.noResultsText}>
+              {language === 'ta' ? 'பொருட்கள் எதுவும் கிடைக்கவில்லை' : 'No matching products found'}
+            </Text>
+          </View>
+        )}
+
+        {filteredPricings.map((p) => {
           const isUp = p.price_trend === 'up';
           const isDown = p.price_trend === 'down';
 
@@ -506,5 +543,38 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '800',
     color: '#FFFFFF'
+  },
+  searchBarBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 14,
+    borderWidth: 1.5,
+    borderColor: '#D1D5DB',
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    marginBottom: 16
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 16,
+    color: '#111827',
+    fontWeight: '600'
+  },
+  noResultsBox: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 36,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    marginBottom: 16
+  },
+  noResultsText: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#6B7280',
+    marginTop: 8
   }
 });

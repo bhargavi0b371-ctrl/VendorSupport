@@ -16,21 +16,68 @@ const KEYS = {
   MARKETS: '@vv_markets',
   FESTIVALS: '@vv_festivals',
   SETTINGS: '@vv_settings',
-  LAST_SYNC: '@vv_last_sync'
+  LAST_SYNC: '@vv_last_sync',
+  AUTH_USER: '@vv_auth_user',
+  AUTH_TOKEN: '@vv_auth_token'
 };
 
-// Initial offline bootstrap dataset (10 items, 3 markets, 5 festivals)
+// Initial offline bootstrap dataset covering all vendor categories
 export const SEED_ITEMS = [
-  { id: 1, name_en: "Tomato", name_ta: "தக்காளி", category: "vegetable", default_unit: "kg", icon: "food-apple", color: "#E53935" },
-  { id: 2, name_en: "Onion", name_ta: "வெங்காயம்", category: "vegetable", default_unit: "kg", icon: "circle-outline", color: "#8E24AA" },
-  { id: 3, name_en: "Potato", name_ta: "உருளைக்கிழங்கு", category: "vegetable", default_unit: "kg", icon: "circle-slice-8", color: "#BCAAA4" },
-  { id: 4, name_en: "Jasmine Flower", name_ta: "மல்லிகைப்பூ", category: "flower", default_unit: "kg", icon: "flower", color: "#FFF59D" },
-  { id: 5, name_en: "Marigold", name_ta: "சாமந்திப்பூ", category: "flower", default_unit: "kg", icon: "flower-tulip", color: "#FFA000" },
-  { id: 6, name_en: "Banana", name_ta: "வாழைப்பழம்", category: "fruit", default_unit: "kg", icon: "fruit-grapes", color: "#FDD835" },
-  { id: 7, name_en: "Apple", name_ta: "ஆப்பிள்", category: "fruit", default_unit: "kg", icon: "food-apple-outline", color: "#D32F2F" },
-  { id: 8, name_en: "Green Chilli", name_ta: "பச்சை மிளகாய்", category: "vegetable", default_unit: "kg", icon: "chili-mild", color: "#2E7D32" },
-  { id: 9, name_en: "Ginger", name_ta: "இஞ்சி", category: "vegetable", default_unit: "kg", icon: "seed", color: "#8D6E63" },
-  { id: 10, name_en: "Coriander", name_ta: "கொத்தமல்லி", category: "herb", default_unit: "bunch", icon: "leaf", color: "#43A047" }
+  // Vegetables: ["Tomato", "Onion", "Brinjal", "Drumstick", "Okra"]
+  { id: 1, name_en: "Tomato", name_ta: "தக்காளி", category: "vegetables", default_unit: "kg", icon: "food-apple", color: "#E53935" },
+  { id: 2, name_en: "Onion", name_ta: "வெங்காயம்", category: "vegetables", default_unit: "kg", icon: "circle-outline", color: "#8E24AA" },
+  { id: 3, name_en: "Brinjal", name_ta: "கத்தரிக்காய்", category: "vegetables", default_unit: "kg", icon: "eggplant", color: "#5E35B1" },
+  { id: 4, name_en: "Drumstick", name_ta: "முருங்கைக்காய்", category: "vegetables", default_unit: "kg", icon: "leaf", color: "#2E7D32" },
+  { id: 5, name_en: "Okra", name_ta: "வெண்டைக்காய்", category: "vegetables", default_unit: "kg", icon: "leaf", color: "#43A047" },
+  { id: 6, name_en: "Potato", name_ta: "உருளைக்கிழங்கு", category: "vegetables", default_unit: "kg", icon: "circle-slice-8", color: "#BCAAA4" },
+  { id: 8, name_en: "Green Chilli", name_ta: "பச்சை மிளகாய்", category: "vegetables", default_unit: "kg", icon: "chili-mild", color: "#2E7D32" },
+  { id: 9, name_en: "Ginger", name_ta: "இஞ்சி", category: "vegetables", default_unit: "kg", icon: "seed", color: "#8D6E63" },
+  { id: 10, name_en: "Coriander", name_ta: "கொத்தமல்லி", category: "vegetables", default_unit: "bunch", icon: "leaf", color: "#43A047" },
+
+  // Fruits: ["Banana", "Mango", "Guava", "Papaya", "Sapota"]
+  { id: 11, name_en: "Banana", name_ta: "வாழைப்பழம்", category: "fruits", default_unit: "dozen", icon: "fruit-grapes", color: "#FDD835" },
+  { id: 12, name_en: "Mango", name_ta: "மாம்பழம்", category: "fruits", default_unit: "kg", icon: "fruit-cherries", color: "#FBC02D" },
+  { id: 13, name_en: "Guava", name_ta: "கொய்யா", category: "fruits", default_unit: "kg", icon: "circle", color: "#8BC34A" },
+  { id: 14, name_en: "Papaya", name_ta: "பப்பாளி", category: "fruits", default_unit: "piece", icon: "fruit-watermelon", color: "#FF9800" },
+  { id: 15, name_en: "Sapota", name_ta: "சப்போட்டா", category: "fruits", default_unit: "kg", icon: "circle-slice-8", color: "#795548" },
+  { id: 7, name_en: "Apple", name_ta: "ஆப்பிள்", category: "fruits", default_unit: "kg", icon: "food-apple-outline", color: "#D32F2F" },
+  { id: 17, name_en: "Orange", name_ta: "ஆரஞ்சு", category: "fruits", default_unit: "kg", icon: "fruit-citrus", color: "#FF9800" },
+  { id: 35, name_en: "Grapes", name_ta: "திராட்சை", category: "fruits", default_unit: "kg", icon: "fruit-grapes", color: "#7B1FA2" },
+
+  // Flowers: ["Jasmine", "Rose", "Marigold", "Kanakambaram", "Flower Garland"]
+  { id: 20, name_en: "Jasmine", name_ta: "மல்லிகைப்பூ", category: "flowers", default_unit: "kg", icon: "flower", color: "#FFF59D" },
+  { id: 21, name_en: "Rose", name_ta: "ரோஜாப்பூ", category: "flowers", default_unit: "bunch", icon: "flower-poppy", color: "#E91E63" },
+  { id: 22, name_en: "Marigold", name_ta: "சாமந்திப்பூ", category: "flowers", default_unit: "kg", icon: "flower-tulip", color: "#FFA000" },
+  { id: 23, name_en: "Kanakambaram", name_ta: "கனகாம்பரம்", category: "flowers", default_unit: "kg", icon: "flower-outline", color: "#FF5722" },
+  { id: 24, name_en: "Flower Garland", name_ta: "பூ மாலை", category: "flowers", default_unit: "piece", icon: "necklace", color: "#9C27B0" },
+
+  // Street Food: ["Bajji", "Bonda", "Vadai", "Sundal", "Pani Puri"]
+  { id: 25, name_en: "Bajji", name_ta: "பஜ்ஜி", category: "street_food", default_unit: "piece", icon: "food", color: "#E65100" },
+  { id: 26, name_en: "Bonda", name_ta: "போண்டா", category: "street_food", default_unit: "piece", icon: "circle", color: "#FF9800" },
+  { id: 27, name_en: "Vadai", name_ta: "வடை", category: "street_food", default_unit: "piece", icon: "circle-slice-8", color: "#D84315" },
+  { id: 28, name_en: "Sundal", name_ta: "சுண்டல்", category: "street_food", default_unit: "cup", icon: "bowl-mix", color: "#8D6E63" },
+  { id: 29, name_en: "Pani Puri", name_ta: "பானி பூரி", category: "street_food", default_unit: "plate", icon: "bowl-mix", color: "#43A047" },
+
+  // TeaCoffee: ["Tea", "Filter Coffee", "Ginger Tea", "Sukku Coffee", "Badam Milk"]
+  { id: 31, name_en: "Tea", name_ta: "டீ", category: "tea_coffee", default_unit: "cup", icon: "tea", color: "#795548" },
+  { id: 32, name_en: "Filter Coffee", name_ta: "பில்டர் காபி", category: "tea_coffee", default_unit: "cup", icon: "coffee", color: "#6D4C41" },
+  { id: 33, name_en: "Ginger Tea", name_ta: "இஞ்சி டீ", category: "tea_coffee", default_unit: "cup", icon: "cup-water", color: "#A1887F" },
+  { id: 34, name_en: "Sukku Coffee", name_ta: "சுக்கு காபி", category: "tea_coffee", default_unit: "cup", icon: "coffee-outline", color: "#5D4037" },
+  { id: 36, name_en: "Badam Milk", name_ta: "பாதாம் பால்", category: "tea_coffee", default_unit: "cup", icon: "cup", color: "#FFE082" },
+
+  // Groceries: ["Rice", "Dal", "Sugar", "Cooking Oil", "Tamarind"]
+  { id: 37, name_en: "Rice", name_ta: "அரிசி", category: "groceries", default_unit: "kg", icon: "grain", color: "#F5F5F5" },
+  { id: 38, name_en: "Dal", name_ta: "பருப்பு", category: "groceries", default_unit: "kg", icon: "seed", color: "#FBC02D" },
+  { id: 39, name_en: "Sugar", name_ta: "சர்க்கரை", category: "groceries", default_unit: "kg", icon: "cube-outline", color: "#ECEFF1" },
+  { id: 40, name_en: "Cooking Oil", name_ta: "சமையல் எண்ணெய்", category: "groceries", default_unit: "litre", "icon": "bottle-tonic", color: "#FFC107" },
+  { id: 41, name_en: "Tamarind", name_ta: "புளி", category: "groceries", default_unit: "kg", icon: "seed-outline", color: "#4E342E" },
+
+  // Clothes: ["Saree", "Nighty", "Lungi", "Leggings", "Bangles"]
+  { id: 42, name_en: "Saree", name_ta: "சேலை", category: "clothes", default_unit: "piece", icon: "tshirt-crew", color: "#C2185B" },
+  { id: 43, name_en: "Nighty", name_ta: "நைட்டி", category: "clothes", default_unit: "piece", icon: "tshirt-v", color: "#8E24AA" },
+  { id: 44, name_en: "Lungi", name_ta: "லுங்கி", category: "clothes", default_unit: "piece", icon: "hanger", color: "#388E3C" },
+  { id: 45, name_en: "Leggings", name_ta: "லெக்கின்ஸ்", category: "clothes", default_unit: "piece", icon: "tshirt-crew", color: "#00897B" },
+  { id: 46, name_en: "Bangles", name_ta: "வளையல்கள்", category: "clothes", default_unit: "set", icon: "circle-outline", color: "#FFB300" }
 ];
 
 export const SEED_MARKETS = [
@@ -264,18 +311,7 @@ export const LocalDB = {
     try {
       const raw = await AsyncStorage.getItem(KEYS.VENDOR_PRODUCTS);
       if (raw) return JSON.parse(raw);
-      // Fallback: convert SEED_ITEMS into initial vendor products
-      return SEED_ITEMS.slice(0, 6).map(it => ({
-        id: it.id,
-        name_en: it.name_en,
-        name_ta: it.name_ta,
-        category: it.category,
-        default_unit: it.default_unit,
-        icon: it.icon,
-        color: it.color,
-        is_active: true,
-        is_custom: false
-      }));
+      return [];
     } catch (e) {
       return [];
     }
@@ -410,6 +446,76 @@ export const LocalDB = {
       net_profit: Math.round(net_profit),
       sales_count: todaySales.length,
       purchases_count: todayPurchases.length
+    };
+  },
+
+  // Authentication & Vendor Profile
+  async getAuthUser() {
+    try {
+      const raw = await AsyncStorage.getItem(KEYS.AUTH_USER);
+      if (raw) return JSON.parse(raw);
+      return null;
+    } catch (e) {
+      return null;
+    }
+  },
+
+  async setAuthUser(user) {
+    if (!user) {
+      await AsyncStorage.removeItem(KEYS.AUTH_USER);
+      await AsyncStorage.removeItem(KEYS.AUTH_TOKEN);
+    } else {
+      await AsyncStorage.setItem(KEYS.AUTH_USER, JSON.stringify(user));
+      await AsyncStorage.setItem(KEYS.AUTH_TOKEN, `vv_token_${user.id}_${user.phone}`);
+    }
+  },
+
+  async clearAuthUser() {
+    await AsyncStorage.removeItem(KEYS.AUTH_USER);
+    await AsyncStorage.removeItem(KEYS.AUTH_TOKEN);
+  },
+
+  // Offline Period Reports Aggregation
+  async getPeriodReport(period = 'daily') {
+    const dailyEntries = await this.getDailyEntries();
+    const todaySummary = await this.getTodaySummary();
+
+    if (dailyEntries.length === 0) {
+      return {
+        period,
+        total_sales: todaySummary.total_sales,
+        total_purchases: todaySummary.total_purchases,
+        net_profit: todaySummary.net_profit,
+        profit_margin_pct: todaySummary.total_sales > 0 ? Math.round((todaySummary.net_profit / todaySummary.total_sales) * 1000) / 10 : 0,
+        chart_data: [
+          { label: "Today", sales: todaySummary.total_sales, purchases: todaySummary.total_purchases, profit: todaySummary.net_profit }
+        ],
+        top_selling_items: []
+      };
+    }
+
+    // Build chart data from last 7 days of daily entries
+    const chart_data = dailyEntries.slice(0, 7).reverse().map(e => ({
+      label: (e.entry_date || 'Day').slice(5),
+      date: e.entry_date,
+      sales: Math.round(e.calculated_report?.total_sales_revenue || e.total_revenue || 0),
+      purchases: Math.round((e.calculated_report?.total_cost_of_goods_sold || e.total_cogs || 0) + (e.calculated_report?.total_daily_expenses || e.total_expenses || 0)),
+      profit: Math.round(e.calculated_report?.net_profit || e.net_profit || 0)
+    }));
+
+    const total_sales = chart_data.reduce((acc, c) => acc + c.sales, 0);
+    const total_purchases = chart_data.reduce((acc, c) => acc + c.purchases, 0);
+    const net_profit = total_sales - total_purchases;
+    const profit_margin_pct = total_sales > 0 ? Math.round((net_profit / total_sales) * 1000) / 10 : 0;
+
+    return {
+      period,
+      total_sales,
+      total_purchases,
+      net_profit,
+      profit_margin_pct,
+      chart_data,
+      top_selling_items: []
     };
   },
 
