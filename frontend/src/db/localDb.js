@@ -545,5 +545,25 @@ export const LocalDB = {
 
   async saveSettings(settings) {
     await AsyncStorage.setItem(KEYS.SETTINGS, JSON.stringify(settings));
+  },
+
+  // AI Demand Forecast Cache (Vendor-namespaced)
+  async saveCachedDemandForecast(forecast, userId = 1) {
+    try {
+      const key = `@vv_demand_forecast_${userId}`;
+      await AsyncStorage.setItem(key, JSON.stringify(forecast));
+    } catch (e) {
+      console.warn("Failed to cache demand forecast", e);
+    }
+  },
+
+  async getCachedDemandForecast(userId = 1) {
+    try {
+      const key = `@vv_demand_forecast_${userId}`;
+      const raw = await AsyncStorage.getItem(key);
+      return raw ? JSON.parse(raw) : null;
+    } catch (e) {
+      return null;
+    }
   }
 };

@@ -19,6 +19,7 @@ import { OnboardingScreen } from './src/screens/OnboardingScreen';
 import { DailySalesEntryScreen } from './src/screens/DailySalesEntryScreen';
 import { DailyReportModal } from './src/screens/DailyReportModal';
 import { MarketIntelligenceScreen } from './src/screens/MarketIntelligenceScreen';
+import { AIDemandPredictorScreen } from './src/screens/AIDemandPredictorScreen';
 
 const MainNavigator = () => {
   const [currentScreen, setCurrentScreen] = useState('home');
@@ -144,6 +145,8 @@ const MainNavigator = () => {
         return <SettingsScreen onNavigate={handleNavigate} onLogout={handleLogout} />;
       case 'marketIntelligence':
         return <MarketIntelligenceScreen onNavigate={handleNavigate} />;
+      case 'demandPredictor':
+        return <AIDemandPredictorScreen onNavigate={handleNavigate} />;
       default:
         return <HomeScreen onNavigate={handleNavigate} onLogout={handleLogout} />;
     }

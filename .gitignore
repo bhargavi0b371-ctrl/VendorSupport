@@ -7,6 +7,8 @@ venv/
 .env
 .env.*
 !.env.example
+backend/app/ml_models/*.joblib
+backend/app/ml_models/rf_meta_*.json
 
 # SQLite/runtime databases
 *.db

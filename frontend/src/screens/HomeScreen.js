@@ -316,6 +316,17 @@ export const HomeScreen = ({ onNavigate, onLogout }) => {
               style={styles.gridBtn}
             />
             <BigButton
+              title={language === 'ta' ? 'AI தேவை கணிப்பு' : 'AI Demand Predictor'}
+              subtitle={language === 'ta' ? '7 நாள் விற்பனை கணிப்பு' : '7-Day ML Forecast'}
+              icon="crystal-ball"
+              color="#D97706"
+              onPress={() => onNavigate('demandPredictor')}
+              style={styles.gridBtn}
+            />
+          </View>
+
+          <View style={styles.actionsRow}>
+            <BigButton
               title={t('tabReports')}
               subtitle={language === 'ta' ? 'லாப அறிக்கை' : 'Sales & Charts'}
               icon="chart-bar"

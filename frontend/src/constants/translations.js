@@ -11,7 +11,26 @@ export const TRANSLATIONS = {
     tabReports: "Reports",
     tabPricing: "Price Guide",
     tabWhereToBuy: "Where to Buy",
+    tabDemand: "AI Demand",
     tabSettings: "Settings",
+
+    // AI Demand Predictor
+    demandPredictorTitle: "AI Demand Predictor",
+    demandPredictorSubtitle: "Machine learning sales forecasts & suggested purchase stock",
+    tomorrowDemand: "Tomorrow's Demand",
+    next7DaysDemand: "7-Day Total Demand",
+    historicalAvg: "Past Daily Average",
+    suggestedPurchase: "Suggested Purchase",
+    currentStock: "Current Unsold Stock",
+    refreshPredictions: "Refresh Forecast",
+    retrainModelsBtn: "Retrain AI Models",
+    mlActiveTag: "RandomForest ML Active",
+    baselineTag: "Historical Baseline",
+    noDataTag: "No History Recorded",
+    chartTitle: "Sales vs Predicted Demand",
+    modelEvaluationTitle: "Model Evaluation & Accuracy",
+    evalMae: "Test MAE",
+    observations: "Observations",
 
     // First-Time Onboarding
     onboardingTitle: "Vendor Setup",
@@ -172,7 +191,26 @@ export const TRANSLATIONS = {
     tabReports: "அறிக்கைகள்",
     tabPricing: "விலை வழிகாட்டி",
     tabWhereToBuy: "எங்கு வாங்கலாம்",
+    tabDemand: "தேவை கணிப்பு",
     tabSettings: "அமைப்புகள்",
+
+    // AI Demand Predictor
+    demandPredictorTitle: "AI தேவை கணிப்பாளர்",
+    demandPredictorSubtitle: "இயந்திர கற்றல் (ML) விற்பனை கணிப்பு & கொள்முதல் ஆலோசனை",
+    tomorrowDemand: "நாளைக்கான தேவை",
+    next7DaysDemand: "7 நாள் மொத்த தேவை",
+    historicalAvg: "முந்தைய சராசரி விற்பனை",
+    suggestedPurchase: "பரிந்துரைக்கப்படும் கொள்முதல்",
+    currentStock: "மீதமுள்ள சரக்கு இருப்பு",
+    refreshPredictions: "கணிப்பை புதுப்பிக்க",
+    retrainModelsBtn: "AI மாடலை மறுபயிற்சி செய்ய",
+    mlActiveTag: "AI ரேண்டம் ஃபாரஸ்ட் இயங்குகிறது",
+    baselineTag: "வரலாற்று சராசரி கணிப்பு",
+    noDataTag: "விற்பனை வரலாறு இல்லை",
+    chartTitle: "விற்பனை மற்றும் கணிக்கப்பட்ட தேவை",
+    modelEvaluationTitle: "மாடல் மதிப்பீடு & துல்லியம்",
+    evalMae: "சோதனை பிழை (MAE)",
+    observations: "விற்பனை பதிவுகள்",
 
     // First-Time Onboarding
     onboardingTitle: "வியாபார பதிவு",

@@ -641,6 +641,44 @@ class ApiClient {
       return settings;
     }
   }
+
+  // --- AI Demand Prediction ---
+  async getDemandForecast(userId = null) {
+    let uid = userId;
+    if (!uid) {
+      const u = await LocalDB.getAuthUser();
+      uid = u?.id || 1;
+    }
+    try {
+      const forecast = await this._request(`/api/demand/forecast?user_id=${uid}`);
+      await LocalDB.saveCachedDemandForecast(forecast, uid);
+      return forecast;
+    } catch (e) {
+      const cached = await LocalDB.getCachedDemandForecast(uid);
+      if (cached) return cached;
+      throw e;
+    }
+  }
+
+  async getProductDemandForecast(productId, userId = null) {
+    let uid = userId;
+    if (!uid) {
+      const u = await LocalDB.getAuthUser();
+      uid = u?.id || 1;
+    }
+    return await this._request(`/api/demand/product/${productId}?user_id=${uid}`);
+  }
+
+  async retrainDemandModels(userId = null) {
+    let uid = userId;
+    if (!uid) {
+      const u = await LocalDB.getAuthUser();
+      uid = u?.id || 1;
+    }
+    return await this._request(`/api/demand/retrain?user_id=${uid}`, {
+      method: 'POST'
+    });
+  }
 }
 
 export const api = new ApiClient();
